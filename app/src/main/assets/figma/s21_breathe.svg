@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="240" height="150" viewBox="0 0 240 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Thumb">
+<path id="Vector" d="M120 148C156.451 148 186 118.451 186 82C186 45.5492 156.451 16 120 16C83.5492 16 54 45.5492 54 82C54 118.451 83.5492 148 120 148Z" fill="#FFC3D2" fill-opacity="0.18"/>
+<path id="Vector_2" d="M120 130C146.51 130 168 108.51 168 82C168 55.4903 146.51 34 120 34C93.4903 34 72 55.4903 72 82C72 108.51 93.4903 130 120 130Z" fill="#FFC3D2" fill-opacity="0.22"/>
+<path id="Vector_3" d="M120 121.6C51.8 79.8 73.8 16 120 55.6C166.2 16 188.2 79.8 120 121.6Z" stroke-width="6" stroke-linejoin="round" stroke="#FF8FAB"/>
+</g>
+</svg>
