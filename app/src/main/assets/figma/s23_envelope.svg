@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="258" height="146.2" viewBox="0 0 258 146.2" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Thumb">
+<path id="Vector" d="M187.48 30.96H70.52C64.8204 30.96 60.2 35.5804 60.2 41.28V110.08C60.2 115.78 64.8204 120.4 70.52 120.4H187.48C193.18 120.4 197.8 115.78 197.8 110.08V41.28C197.8 35.5804 193.18 30.96 187.48 30.96Z" fill="#F3EBE1" stroke-width="3.44" stroke="#3A2F2A"/>
+<path id="Vector_2" d="M63.64 37.84L129 84.28L194.36 37.84" stroke-width="3.44" stroke-linejoin="round" stroke="#3A2F2A"/>
+<path id="Vector_3" d="M163.4 12.04H94.6C91.7502 12.04 89.44 14.3502 89.44 17.2V58.48C89.44 61.3298 91.7502 63.64 94.6 63.64H163.4C166.25 63.64 168.56 61.3298 168.56 58.48V17.2C168.56 14.3502 166.25 12.04 163.4 12.04Z" fill="white" stroke-width="2.58" stroke="#3A2F2A"/>
+<g id="Vector_4">
+<path d="M99.76 27.52H158.24ZM99.76 39.56H146.2Z" fill="black"/>
+<path d="M99.76 27.52H158.24M99.76 39.56H146.2" stroke-width="3.44" stroke-linecap="round" stroke="#E2D4C3"/>
+</g>
+<path id="Vector_5" d="M129 99.76C136.599 99.76 142.76 93.5994 142.76 86C142.76 78.4006 136.599 72.24 129 72.24C121.401 72.24 115.24 78.4006 115.24 86C115.24 93.5994 121.401 99.76 129 99.76Z" fill="#E9557F" stroke-width="2.58" stroke="#3A2F2A"/>
+<path id="Vector_6" d="M129 90.9534C120.469 85.7246 123.221 77.7438 129 82.6974C134.779 77.7438 137.531 85.7246 129 90.9534Z" fill="white"/>
+</g>
+</svg>

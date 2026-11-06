@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="780" height="560" viewBox="0 0 780 560" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Envelope Back" clip-path="url(#clip0_0_354)">
+<path id="Vector" d="M26 250L390 30C396.667 26 403.333 26 410 30L754 250H26Z" fill="#EADCCB" stroke-width="5" stroke-linejoin="round" stroke="#2B2226"/>
+<path id="Vector_2" d="M749 244H31C15.536 244 3 256.536 3 272V556C3 571.464 15.536 584 31 584H749C764.464 584 777 571.464 777 556V272C777 256.536 764.464 244 749 244Z" fill="#F3EBE1" stroke-width="5" stroke="#2B2226"/>
+</g>
+<defs>
+<clipPath id="clip0_0_354">
+<rect width="780" height="560" fill="white"/>
+</clipPath>
+</defs>
+</svg>

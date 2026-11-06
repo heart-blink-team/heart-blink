@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="21" height="21" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="lamp">
+<path id="Vector" d="M10.5 21C16.299 21 21 16.299 21 10.5C21 4.70101 16.299 0 10.5 0C4.70101 0 0 4.70101 0 10.5C0 16.299 4.70101 21 10.5 21Z" fill="#FFC3D2" fill-opacity="0.16"/>
+<path id="Vector_2" d="M10.5 18.795C15.0812 18.795 18.795 15.0812 18.795 10.5C18.795 5.9188 15.0812 2.205 10.5 2.205C5.9188 2.205 2.205 5.9188 2.205 10.5C2.205 15.0812 5.9188 18.795 10.5 18.795Z" fill="#FFC3D2" fill-opacity="0.24"/>
+<path id="Vector_3" d="M10.5 16.695C13.9214 16.695 16.695 13.9214 16.695 10.5C16.695 7.0786 13.9214 4.305 10.5 4.305C7.0786 4.305 4.305 7.0786 4.305 10.5C4.305 13.9214 7.0786 16.695 10.5 16.695Z" fill="#FF8FAB" fill-opacity="0.16"/>
+<g id="Group">
+<path id="Vector_4" d="M10.5 14.616C9.576 13.8768 5.88 11.4744 5.88 9.072C5.88 6.6696 8.8368 5.7456 10.5 8.148C12.1632 5.7456 15.12 6.6696 15.12 9.072C15.12 11.4744 11.424 13.8768 10.5 14.616Z" fill="#E9557F" stroke-width="0.8316" stroke-linecap="round" stroke-linejoin="round" stroke="#E9557F"/>
+<path id="Vector_5" d="M7.5432 9.2568C7.5432 8.3944 7.9128 7.9632 8.652 7.9632" stroke-width="0.6468" stroke-linecap="round" stroke-linejoin="round" stroke="#FFC3D2"/>
+</g>
+</g>
+</svg>
