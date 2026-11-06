@@ -71,7 +71,7 @@ fun QuestionScreen(nav: Nav) {
             Modifier.offset(190.dp, 302.dp),
         )
         AnswerCard(
-            "서연의 답", "나도 캠핑!\n통했다!", "0:05", "from. 여니",
+            "서연의 답", "캠핑 가서\n같이 별\n보고 싶어!", "0:05", "from. 여니",
             Tape(321.6f, -25.9f, -6f),
             Modifier.offset(992.dp, 302.dp).graphicsLayer {
                 rotationY = flip.value

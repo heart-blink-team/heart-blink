@@ -144,7 +144,7 @@ private data class QuestionCard(
 
 private val questionCards = listOf(
     QuestionCard("129번째 질문  지금 질문", "내 답을 기다려요", true, "요즘 나한테 제일 고마웠던 순간은?", null, Answer.Waiting, Answer.Locked),
-    QuestionCard("128번째 질문  11월 6일에 열림", "둘 다 답했어요", false, "이번 주말에 나랑 꼭 하고 싶은 것 하나는?", null, Answer.Voice("캠핑 가고 싶어!"), Answer.Voice("나도 캠핑! 통했다!")),
+    QuestionCard("128번째 질문  11월 6일에 열림", "둘 다 답했어요", false, "이번 주말에 나랑 꼭 하고 싶은 것 하나는?", null, Answer.Voice("캠핑 가고 싶어!"), Answer.Voice("캠핑 가서 같이 별 보고 싶어!")),
     QuestionCard("127번째 질문  11월 5일에 열림", "둘 다 답했어요", false, "오늘 출근길에 제일 먼저 떠오른 생각은?", null, Answer.Voice("어제 같이 본 영화 장면"), Answer.Voice("지훈이 잘 일어났나")),
     QuestionCard(
         "126번째 질문  11월 3일부터 4일까지", "하루 이어진 질문", false, "처음 만난 날, 제일 기억나는 장면은?",
