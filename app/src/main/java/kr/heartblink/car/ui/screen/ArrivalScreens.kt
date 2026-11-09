@@ -10,6 +10,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -44,12 +46,27 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kr.heartblink.car.R
+import kr.heartblink.car.data.ConditionGroup as DataGroup
+import kr.heartblink.car.ui.component.PrimaryButton
+import kr.heartblink.car.data.Message
+import kr.heartblink.car.data.ConditionValue
+import kr.heartblink.car.app.TimeBand
+import kr.heartblink.car.app.Session
+import kr.heartblink.car.app.MessageOpener
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
 import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.HeartCar
 import kr.heartblink.car.ui.component.Inset
@@ -70,6 +87,9 @@ val arrivalScreens: Map<String, @Composable (Nav) -> Unit> = linkedMapOf<String,
     "12" to { nav -> OfficeMapScreen(nav) },
     "13" to { nav -> FirstStartSceneScreen(nav) },
     "14" to { nav -> NightSceneScreen(nav) },
+    // a real message that opened in this car (MainActivity opens these when the car is parked)
+    "arrive" to { nav -> LiveEnvelopeScreen(nav) },
+    "arrive-scene" to { nav -> LiveSceneScreen(nav) },
 )
 
 // ---------------------------------------------------------------------------------------------
@@ -102,12 +122,8 @@ fun WiperSceneScreen(nav: Nav) {
         sentAt = "오늘 오후 6:12, 주행 중에 들음",
         message = listOf("비 오는 날엔", "천천히 와"),
         voiceSeconds = 4,
-    ) {
-        // Heart/Scene Wiper: one flattened drawing larger than the 950 x 722 window
-        Layered(Modifier.fillMaxSize()) {
-            svg("s10_scene_wiper", Inset.pct(-15.92f, -14f, -9.85f, -11f), Inset.pct(0f, 0.27f, 0.35f, 0.27f))
-        }
-    }
+        scene = WiperScene,
+    )
 }
 
 /** 11 메시지 도착 1: 봉투 (회사 도착). The letter rises, then the map scene (12) follows. */
@@ -162,12 +178,8 @@ fun FirstStartSceneScreen(nav: Nav) {
         sentAt = "어젯밤 11:20에 남김",
         message = listOf("오늘 발표", "잘해, 응원해!"),
         voiceSeconds = 4,
-    ) {
-        // Heart/Scene First Start
-        Layered(Modifier.fillMaxSize()) {
-            svg("s13_scene_first_start", Inset.pct(-9.21f, -6f, -3.48f, -6f), Inset.pct(0f, 0.27f, 0.35f, 0.27f))
-        }
-    }
+        scene = FirstStartScene,
+    )
 }
 
 /** 14 메시지 도착 2: 밤길 (전조등). */
@@ -181,12 +193,8 @@ fun NightSceneScreen(nav: Nav) {
         sentAt = "오늘 밤 9:05, 주행 중에 들음",
         message = listOf("밤길", "조심해서 와"),
         voiceSeconds = 3,
-    ) {
-        // Heart/Scene Night
-        Layered(Modifier.fillMaxSize()) {
-            svg("s14_scene_night", Inset.pct(0f, 0f, -2.63f, -1.3f), Inset.pct(0f, 0.22f, 0.29f, 0.22f))
-        }
-    }
+        scene = HeadlightScene,
+    )
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -227,6 +235,7 @@ private fun EnvelopeScreen(
     letterRules: List<Float>,
     partner: String = "서연",
     partnerNickname: String = "여니",
+    me: String = "후니",
     backdrop: @Composable () -> Unit = {},
 ) {
     val c = Heart.colors
@@ -242,7 +251,7 @@ private fun EnvelopeScreen(
     HeartWindow(Tab.Home, nav) {
         Box(Modifier.fillMaxSize().tap { nav.go(next) }) {
             backdrop()
-            HeartCar("후니", Modifier.offset((-270).dp, 380.dp).size(720.dp, 558.dp))
+            HeartCar(me, Modifier.offset((-270).dp, 380.dp).size(720.dp, 558.dp))
             HeartCar(partnerNickname, Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp))
 
             // condition chip, centered at y = 150
@@ -357,6 +366,7 @@ private fun SceneScreen(
     voiceDelayMillis: Int = FadeMillis,
     partner: String = "서연",
     partnerNickname: String = "여니",
+    card: (@Composable () -> Unit)? = null,
     scene: @Composable BoxScope.() -> Unit,
 ) {
     val fade = remember { Animatable(0f) }
@@ -367,7 +377,8 @@ private fun SceneScreen(
             horizontalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             SceneCard(title, scene)
-            MessageCard(partner, partnerNickname, condition, conditionIcon, sentAt, message, voiceSeconds, voiceDelayMillis)
+            if (card != null) card()
+            else MessageCard(partner, partnerNickname, condition, conditionIcon, sentAt, message, voiceSeconds, voiceDelayMillis)
         }
     }
 }
@@ -535,4 +546,254 @@ private fun MapLabel(text: String, modifier: Modifier) {
             .border(3.dp, LetterInk, Pill)
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) { Text(text, style = HeartType.BodyStrong, color = Heart.colors.textPrimary, maxLines = 1) }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Live: a message that opened in this car
+
+/** The opened message the arrival screens show now. */
+internal object Arrival {
+    var current by mutableStateOf<Message?>(null)
+}
+
+/** How a condition looks on the envelope chip, the scene title, the card pill and the drawing. */
+private class Look(
+    val chip: String,
+    val icon: Glyph,
+    val title: String,
+    val condition: String,
+    val rain: Boolean = false,
+    val scene: @Composable BoxScope.() -> Unit,
+)
+
+private val WiperGlyph = Glyph("s09_icon_wiper", Inset.pct(28.13f, 12.5f, 16.87f, 12.5f), Inset.pct(6.82f, 5f))
+private val FlagGlyph = Glyph("s11_icon_flag", Inset.pct(12.5f, 25f, 9.38f, 25f), Inset.pct(5.2f, 8.13f, 5.2f, 8.12f))
+private val StartGlyph = Glyph("s13_icon_start", Inset.pct(18.75f, 15.63f, 12.5f, 15.63f), Inset.pct(5.91f))
+private val HeadlightGlyph = Glyph("s14_icon_headlight", Inset.pct(21.88f, 12.5f, 21.88f, 15.63f), Inset.pct(7.22f, 5.65f))
+private val PlaceGlyph = Glyph("s15_icon_place", Inset.pct(9.38f, 18.75f), Inset.pct(4.62f, 6f))
+
+private fun optionGlyph(value: String, fallback: Glyph): Glyph =
+    ConditionGroup.optionFor(value)?.let { Glyph(it.icon, it.inset, it.bleed) } ?: fallback
+
+/** A windshield drawing (1070 x 817, colored pencil) filling the 950 x 722 scene window. */
+private fun sceneImage(@DrawableRes id: Int): @Composable BoxScope.() -> Unit = {
+    Image(painterResource(id), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+}
+
+private val WiperScene = sceneImage(R.drawable.scene_wiper)
+private val FirstStartScene = sceneImage(R.drawable.scene_first_start)
+private val HeadlightScene = sceneImage(R.drawable.scene_headlight)
+private val SeatHeaterScene = sceneImage(R.drawable.scene_seat_heater)
+private val AirconScene = sceneImage(R.drawable.scene_aircon)
+private val WindowScene = sceneImage(R.drawable.scene_window)
+private val PlaceScene = sceneImage(R.drawable.scene_place)
+
+/** The time-of-day drawing for a band, by the hour it starts (a custom range too). */
+private fun timeScene(band: TimeBand?): @Composable BoxScope.() -> Unit = sceneImage(
+    when (band?.start?.hour) {
+        null -> R.drawable.scene_morning
+        in 4..6 -> R.drawable.scene_dawn
+        in 7..10 -> R.drawable.scene_morning
+        in 11..13 -> R.drawable.scene_noon
+        in 14..16 -> R.drawable.scene_afternoon
+        in 17..19 -> R.drawable.scene_evening
+        else -> R.drawable.scene_night_city
+    },
+)
+
+private fun mapScene(to: String): @Composable BoxScope.() -> Unit = {
+    val route = remember { Animatable(0f) }
+    val pin = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(FadeMillis.toLong())
+        route.animateTo(1f, tween(1200, easing = FastOutSlowInEasing))
+        pin.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
+    }
+    MapArrival(route = route.value, pin = pin.value)
+    MapLabel(to, Modifier.offset(661.9.dp, 252.7.dp))
+    MapLabel("출발", Modifier.offset(71.dp, 608.dp))
+}
+
+private fun look(m: Message): Look = when (m.group) {
+    DataGroup.Vehicle -> when (m.conditionValue) {
+        ConditionValue.WIPER -> Look("비 오는 길, 와이퍼를 켜는 순간 열렸어요", WiperGlyph, "비 오는 길에서 열린 메시지", "와이퍼를 켤 때", rain = true, scene = WiperScene)
+        ConditionValue.HEADLIGHT -> Look("전조등을 켜는 순간 열렸어요", HeadlightGlyph, "밤길에서 열린 메시지", "전조등을 켤 때", scene = HeadlightScene)
+        ConditionValue.SEAT_HEATER -> Look("열선 시트를 켜는 순간 열렸어요", optionGlyph(m.conditionValue, StartGlyph), "열선 시트를 켰어요", "열선 시트를 켤 때", scene = SeatHeaterScene)
+        ConditionValue.AIRCON -> Look("에어컨을 켜는 순간 열렸어요", optionGlyph(m.conditionValue, StartGlyph), "에어컨을 켰어요", "에어컨을 켤 때", scene = AirconScene)
+        else -> Look("창문을 여는 순간 열렸어요", optionGlyph(m.conditionValue, StartGlyph), "창문을 열었어요", "창문을 열 때", scene = WindowScene)
+    }
+    DataGroup.FirstStart -> Look("오늘 첫 시동을 거는 순간 열렸어요", StartGlyph, "오늘 첫 시동을 걸었어요", "그날 첫 시동", scene = FirstStartScene)
+    DataGroup.Arrival ->
+        if (m.conditionValue == ConditionValue.PARKED) Look("주차하는 순간 열렸어요", FlagGlyph, "주차했어요", "주차했을 때", scene = mapScene("주차"))
+        else Look(
+            "목적지에 도착하는 순간 열렸어요", FlagGlyph, "목적지에 도착했어요", "목적지에 도착할 때",
+            scene = mapScene(kr.heartblink.car.app.NaviWatch.arrivedAt?.takeIf { it.isNotBlank() } ?: "도착"),
+        )
+    DataGroup.Place -> {
+        val name = m.placeName?.takeIf { it.isNotBlank() } ?: "고른 장소"
+        Look("$name 근처에 오는 순간 열렸어요", PlaceGlyph, "$name 근처에 왔어요", "$name 근처에 가면", scene = PlaceScene)
+    }
+    DataGroup.Time, null -> {
+        val label = ConditionGroup.timeLabel(m.conditionValue) ?: "고른 시간"
+        Look("${label}에 열렸어요", optionGlyph(m.conditionValue, StartGlyph), "${label}에 열린 메시지", "${label}에", scene = timeScene(TimeBand.of(m.conditionValue)))
+    }
+}
+
+/** The handwritten message: a short one in big letters, a long one smaller, wrapped between words. */
+private fun letterStyle(body: String): TextStyle = when {
+    body.length <= 7 -> hand(76f, 86f)
+    body.length <= 16 -> hand(58f, 70f)
+    else -> hand(46f, 58f)
+}.copy(lineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase))
+
+private fun Message.letterText(): String = body.ifBlank { "목소리로 남긴 메시지예요" }
+
+@Composable
+private fun LiveEnvelopeScreen(nav: Nav) {
+    val m = Arrival.current
+    if (m == null) {
+        LaunchedEffect(Unit) { nav.go("04") }
+        return
+    }
+    val v = Session.view
+    val l = look(m)
+    EnvelopeScreen(
+        nav = nav,
+        next = "arrive-scene",
+        autoAdvance = true,
+        chip = l.chip,
+        chipIcon = l.icon,
+        letter = listOf(m.letterText()),
+        letterStyle = letterStyle(m.letterText()),
+        letterRules = listOf(172f, 258f),
+        partner = v.partnerName,
+        partnerNickname = v.partnerNickname,
+        me = v.myNickname,
+        backdrop = { if (l.rain) RainOverlay() },
+    )
+}
+
+@Composable
+private fun LiveSceneScreen(nav: Nav) {
+    val m = Arrival.current
+    if (m == null) {
+        LaunchedEffect(Unit) { nav.go("04") }
+        return
+    }
+    val v = Session.view
+    val l = look(m)
+    val sentAt = m.createdAt?.let { "${koreanMoment(it)}에 남김" }.orEmpty()
+    SceneScreen(
+        nav = nav,
+        title = l.title,
+        condition = l.condition,
+        conditionIcon = l.icon,
+        sentAt = sentAt,
+        message = listOf(m.letterText()),
+        voiceSeconds = 0,
+        partner = v.partnerName,
+        partnerNickname = v.partnerNickname,
+        card = { LiveMessageCard(m, v.partnerName, v.partnerNickname, l, sentAt, nav) },
+        scene = l.scene,
+    )
+}
+
+/** The message card with the partner's real voice; 다음 메시지 goes on to the next opened one. */
+@Composable
+private fun LiveMessageCard(m: Message, partner: String, nickname: String, l: Look, sentAt: String, nav: Nav) {
+    val c = Heart.colors
+    val shape = RoundedCornerShape(36.dp)
+    val scope = rememberCoroutineScope()
+    val playback = rememberVoicePlayback()
+    val progress by playback.progress.collectAsState(initial = 0f)
+    val path = m.audioPath
+    val totalMs = m.audioMs ?: 0
+    val heard: () -> Unit = {
+        scope.launch {
+            Session.repository?.markMessage(m.id, opened = true, heard = true)
+            MessageOpener.refreshWaiting()
+        }
+    }
+    LaunchedEffect(m.id) {
+        if (path != null) {
+            delay(FadeMillis.toLong())
+            playback.toggleRemote(path, heard)
+        } else {
+            heard()
+        }
+    }
+    val playing = path != null && playback.isPlaying(path)
+    val waiting by MessageOpener.waiting.collectAsState()
+    val rest = waiting.filter { it.id != m.id }
+    val goOn = {
+        playback.stop()
+        Arrival.current = rest.firstOrNull()
+        nav.go(if (rest.isEmpty()) "04" else "arrive")
+    }
+
+    Box(
+        Modifier
+            .size(568.dp, 840.dp)
+            .outerShadow(shape, CardShadow)
+            .clip(shape)
+            .background(c.bgCard)
+            .border(2.dp, c.line, shape),
+    ) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 44.dp, vertical = 40.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(56.dp).clip(CircleShape).background(c.pinkLight), contentAlignment = Alignment.Center) {
+                    Text(partner.take(1), style = HeartType.gaegu(34f), color = c.textPrimary)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("${partner}님이 남겨 둔 메시지", style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
+                    Text(sentAt, style = HeartType.Label, color = c.textTertiary, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                Modifier.clip(Pill).background(c.pinkLight).padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GlyphIcon(l.icon, 28.dp)
+                Text(l.condition, style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1)
+            }
+            Spacer(Modifier.height(36.dp))
+            Text(m.letterText(), style = letterStyle(m.letterText()), color = c.textPrimary, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "from. $nickname", style = hand(32f, 40f, bold = false).copy(textAlign = TextAlign.End), color = c.textSecondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.weight(1f))
+            if (path != null) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(Pill)
+                        .background(c.pinkLight)
+                        .tap { playback.toggleRemote(path, heard) }
+                        .padding(start = 12.dp, end = 22.dp, top = 12.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FigmaSvg(if (playing) "scene_pause" else "s06_play", Modifier.size(52.dp))
+                    FigmaSvg("scene_waveform", Modifier.size(168.dp, 44.dp))
+                    val elapsed = if (playing) (progress * totalMs).toInt() else 0
+                    Text("${durationText(elapsed)} / ${durationText(totalMs)}", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (path != null) {
+                    SecondaryButton("다시 듣기", Modifier.weight(1f), onClick = {
+                        playback.stop()
+                        playback.toggleRemote(path, heard)
+                    })
+                }
+                PrimaryButton(if (rest.isEmpty()) "홈으로" else "다음 메시지", Modifier.weight(1f), onClick = goOn)
+            }
+        }
+        FigmaSvg("scene_heart_stamp", Modifier.offset(442.54.dp, 25.53.dp).size(86.dp, 100.dp).rotate(-8f))
+    }
 }
