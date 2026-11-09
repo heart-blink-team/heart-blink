@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import kr.heartblink.car.app.CoupleView
+import kr.heartblink.car.app.Session
 import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.HeartCar
 import kr.heartblink.car.ui.component.Tab
@@ -29,11 +31,15 @@ import kr.heartblink.car.ui.theme.HeartType
  * in the middle blink twice together, then rest.
  */
 @Composable
-fun HomeScreen(nav: Nav, partnerDriving: Boolean = true, days: Int = 413, me: String = "지훈", partner: String = "서연") {
-    val lit = if (partnerDriving) blinkTwice() else 0f
-    HeartWindow(Tab.Home, nav, newQuestion = true) {
-        HeartCar("후니", Modifier.offset((-270).dp, 380.dp).size(720.dp, 558.dp))
-        HeartCar("여니", Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp), blinking = lit > 0.5f)
+fun HomeScreen(nav: Nav, v: CoupleView = CoupleView.Demo) {
+    val lit = if (v.partnerDriving) blinkTwice() else 0f
+    val me = v.meName
+    val partner = v.partnerName
+    // the dot on 오늘의 질문 shows while the current question waits for my answer
+    val newQuestion = if (Session.live) Session.question?.let { it.mine == null } ?: false else true
+    HeartWindow(Tab.Home, nav, newQuestion = newQuestion) {
+        HeartCar(v.myNickname, Modifier.offset((-270).dp, 380.dp).size(720.dp, 558.dp))
+        HeartCar(v.partnerNickname, Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp), blinking = lit > 0.5f)
         FigmaSvg("heart_glow", Modifier.offset(561.dp, 292.dp).size(560.dp).alpha(lit))
         FigmaSvg("heart_signal", Modifier.offset(595.dp, 330.dp).size(492.dp))
         Column(
@@ -41,11 +47,22 @@ fun HomeScreen(nav: Nav, partnerDriving: Boolean = true, days: Int = 413, me: St
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("${me}과 ${partner}이 함께한 지", style = HeartType.Label, color = Heart.colors.textSecondary)
-            Text("D+$days", style = HeartType.HeartDisplay, color = Heart.colors.textPrimary)
+            Text("$me${andParticle(me)} $partner${subjectParticle(partner)} 함께한 지", style = HeartType.Label, color = Heart.colors.textSecondary)
+            Text("D+${v.days}", style = HeartType.HeartDisplay, color = Heart.colors.textPrimary)
         }
     }
 }
+
+private fun hasFinal(word: String): Boolean {
+    val last = word.trimEnd().lastOrNull() ?: return false
+    return last in '가'..'힣' && (last - '가') % 28 != 0
+}
+
+/** 과 after a final consonant, 와 otherwise (지훈과, 민지와). */
+internal fun andParticle(word: String) = if (hasFinal(word)) "과" else "와"
+
+/** 이 after a final consonant, 가 otherwise (서연이, 민지가). */
+internal fun subjectParticle(word: String) = if (hasFinal(word)) "이" else "가"
 
 /** 1 while lit: on, off, on, then a pause, once every 1.6 s. */
 @Composable

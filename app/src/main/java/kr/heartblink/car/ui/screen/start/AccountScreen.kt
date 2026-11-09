@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kr.heartblink.car.app.CoupleView
 import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
 import kr.heartblink.car.ui.component.outerShadow
@@ -122,16 +123,14 @@ private fun OneLine(text: String, style: TextStyle, color: Color) {
 
 /** 20 회원관리: my profile, the partner, couple settings and account actions. Editing works only while parked. */
 @Composable
-fun AccountScreen(
-    nav: Nav,
-    me: String = "지훈",
-    myPlate: String = "12가 3456",
-    myNickname: String = "후니",
-    partner: String = "서연",
-    partnerPlate: String = "56다 7890",
-    partnerNickname: String = "여니",
-    days: Int = 413,
-) {
+fun AccountScreen(nav: Nav, v: CoupleView = CoupleView.Demo) {
+    val me = v.meName
+    val myPlate = v.myPlate
+    val myNickname = v.myNickname
+    val partner = v.partnerName
+    val partnerPlate = v.partnerPlate
+    val partnerNickname = v.partnerNickname
+    val days = v.days
     val c = Heart.colors
     HeartWindow(Tab.Home, nav) {
         Row(
@@ -191,7 +190,7 @@ fun AccountScreen(
                 AccountCard(fadeUp(1), PaddingValues(vertical = 12.dp)) {
                     SettingRow(22, "편집", onAction = { nav.go("03") }) {
                         OneLine("기념일 (처음 만난 날)", HeartType.Label, c.textSecondary)
-                        OneLine("2025년 9월 20일, D+$days", HeartType.Headline, c.textPrimary)
+                        OneLine("${v.firstMet?.let(::koreanDate) ?: "아직 정하지 않았어요"}, D+$days", HeartType.Headline, c.textPrimary)
                     }
                     RowDivider()
                     SettingRow(22, "변경", onAction = { nav.go("03") }) {

@@ -5,6 +5,28 @@
         android:name="android.hardware.type.automotive"
         android:required="true" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- voice messages; asked at runtime before recording -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- gear position: the partner sees the heart blink while I drive -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <!-- the car's speech recognizer writes down a recording before it is sent -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+    <!-- while driving the app talks: a message arrived, today's question, my partner's answer -->
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- arrival at the destination, the car's place for place messages, bookmarks for picking a place -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <!-- message conditions: wiper and window, headlight, seat heater, air conditioning -->
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
+    <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <!-- the conditions are watched while the navigation is in front and in gear D -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -16,10 +38,30 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask">
+            <!-- the app stays on screen in gear D and shows its own locked screen (04-1) -->
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".app.HeartService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="opens a partner's message when a car condition happens" />
+        </service>
+
+        <receiver android:name=".app.BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

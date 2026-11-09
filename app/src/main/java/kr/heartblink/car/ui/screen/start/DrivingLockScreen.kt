@@ -39,7 +39,7 @@ private const val Blocked = 0.35f
  * toolbar are dimmed and take no taps. The driver's own heart lamp blinks; messages are announced by voice.
  */
 @Composable
-fun DrivingLockScreen(nav: Nav, me: String = "후니", partner: String = "여니") {
+fun DrivingLockScreen(nav: Nav, me: String = "후니", partner: String = "여니", status: String? = null) {
     val c = Heart.colors
     val lit = blinkTwice()
     HeartWindow(Tab.Home, nav, showHeader = false, showToolbar = false) {
@@ -64,6 +64,7 @@ fun DrivingLockScreen(nav: Nav, me: String = "후니", partner: String = "여니
                 Text("주행 중에는 소리로만 알려 드려요", style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
             }
             Text("메시지와 기록은 주차하면 다시 열려요. 오늘의 질문은 목소리로 답할 수 있어요", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
+            if (status != null) Text(status, style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1)
         }
 
         Row(

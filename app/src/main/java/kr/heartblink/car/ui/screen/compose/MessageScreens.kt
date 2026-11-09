@@ -48,10 +48,27 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.datetime.Clock
+import kr.heartblink.car.app.Session
+import kr.heartblink.car.app.TimeBand
+import kr.heartblink.car.app.CoupleWords
+import kr.heartblink.car.data.WordFix
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextDecoration
+import kotlinx.datetime.LocalTime
+import androidx.compose.foundation.shape.CircleShape
+import kr.heartblink.car.data.ConditionValue
 import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.Inset
 import kr.heartblink.car.ui.component.Layered
@@ -64,43 +81,142 @@ import kr.heartblink.car.ui.component.outerShadow
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.Heart
 import kr.heartblink.car.ui.theme.HeartType
+import kr.heartblink.car.data.ConditionGroup as DataGroup
 
-/** One option inside a condition group (an icon in a 36 px box plus its label). */
-internal class ConditionOption(val label: String, val icon: String, val inset: Inset = Inset.Zero, val bleed: Inset = Inset.Zero)
+/**
+ * One option inside a condition group (an icon in a 36 px box plus its label).
+ * [value] is what messages.condition_value stores for it.
+ */
+internal class ConditionOption(
+    val label: String,
+    val value: String,
+    val icon: String,
+    val inset: Inset = Inset.Zero,
+    val bleed: Inset = Inset.Zero,
+)
 
 /** The two condition groups that have a detail picker in Figma (06 차량 기능, 07 시간대). */
-internal enum class ConditionGroup(val screen: String, val head: String) {
-    Vehicle("06", "상대가 이 기능을 켜는 순간"),
-    Time("07", "이 시간대에 열려요");
+internal enum class ConditionGroup(val screen: String, val head: String, val data: DataGroup) {
+    Vehicle("06", "상대가 이 기능을 켜는 순간", DataGroup.Vehicle),
+    Time("07", "이 시간대에 열려요", DataGroup.Time),
+    FirstStart("06-2", "그날 처음 시동을 거는 순간", DataGroup.FirstStart),
+    Arrival("06-3", "이 순간에 열려요", DataGroup.Arrival),
+    Place("06-4", "이 장소 근처에 오면 열려요", DataGroup.Place);
 
     val options: List<ConditionOption>
         get() = when (this) {
             Vehicle -> listOf(
-                ConditionOption("와이퍼", "s06_opt_wiper", Inset.pct(28.13f, 12.5f, 16.88f, 12.5f), Inset.pct(6.82f, 5f)),
-                ConditionOption("전조등", "s06_opt_headlight", Inset.pct(21.88f, 12.5f, 21.88f, 15.63f), Inset.pct(6.67f, 5.22f)),
-                ConditionOption("열선 시트", "s06_opt_seat", Inset.pct(12.5f, 21.88f, 12.5f, 28.13f), Inset.pct(5f, 7.5f)),
-                ConditionOption("에어컨", "s06_opt_aircon", Inset.pct(9.38f, 14.69f), Inset.pct(4.62f, 5.31f)),
-                ConditionOption("창문 열림", "s06_opt_window", Inset.pct(21.88f, 15.63f, 18.75f, 15.63f), Inset.pct(6.32f, 5.45f)),
+                ConditionOption("와이퍼", ConditionValue.WIPER, "s06_opt_wiper", Inset.pct(28.13f, 12.5f, 16.88f, 12.5f), Inset.pct(6.82f, 5f)),
+                ConditionOption("전조등", ConditionValue.HEADLIGHT, "s06_opt_headlight", Inset.pct(21.88f, 12.5f, 21.88f, 15.63f), Inset.pct(6.67f, 5.22f)),
+                ConditionOption("열선 시트", ConditionValue.SEAT_HEATER, "s06_opt_seat", Inset.pct(12.5f, 21.88f, 12.5f, 28.13f), Inset.pct(5f, 7.5f)),
+                ConditionOption("에어컨", ConditionValue.AIRCON, "s06_opt_aircon", Inset.pct(9.38f, 14.69f), Inset.pct(4.62f, 5.31f)),
+                ConditionOption("창문 열림", ConditionValue.WINDOW, "s06_opt_window", Inset.pct(21.88f, 15.63f, 18.75f, 15.63f), Inset.pct(6.32f, 5.45f)),
             )
             Time -> listOf(
-                ConditionOption("새벽", "s07_opt_dawn"),
-                ConditionOption("아침", "s07_opt_morning"),
-                ConditionOption("점심", "s07_opt_noon"),
-                ConditionOption("오후", "s07_opt_afternoon"),
-                ConditionOption("저녁", "s07_opt_evening"),
-                ConditionOption("밤", "s07_opt_night"),
+                ConditionOption("새벽", ConditionValue.DAWN, "s07_opt_dawn"),
+                ConditionOption("아침", ConditionValue.MORNING, "s07_opt_morning"),
+                ConditionOption("점심", ConditionValue.NOON, "s07_opt_noon"),
+                ConditionOption("오후", ConditionValue.AFTERNOON, "s07_opt_afternoon"),
+                ConditionOption("저녁", ConditionValue.EVENING, "s07_opt_evening"),
+                ConditionOption("밤", ConditionValue.NIGHT, "s07_opt_night"),
+                ConditionOption(CustomTime, TimeBand.CUSTOM, "s06_icon_time_off", Inset.pct(12.5f), Inset.pct(5f)),
             )
+            FirstStart -> listOf(
+                ConditionOption("첫 시동", ConditionValue.FIRST_START, "s06_icon_ignition", Inset.pct(18.75f, 15.63f, 12.5f, 15.63f), Inset.pct(5.45f)),
+            )
+            Arrival -> listOf(
+                ConditionOption("목적지 도착", ConditionValue.DESTINATION, "s06_icon_arrival", Inset.pct(12.5f, 25f, 9.38f, 25f), Inset.pct(4.8f, 7.5f)),
+                ConditionOption("주차했을 때", ConditionValue.PARKED, "s06_icon_arrival", Inset.pct(12.5f, 25f, 9.38f, 25f), Inset.pct(4.8f, 7.5f)),
+            )
+            Place -> listOf(ConditionOption("장소", ConditionValue.PLACE, "s06_icon_place", Inset.pct(9.38f, 18.75f), Inset.pct(4.62f, 6f)))
         }
+
+    fun option(label: String?): ConditionOption = options.firstOrNull { it.label == label } ?: options.first()
+
+    companion object {
+        /** The option a stored condition value stands for, in either group. */
+        fun optionFor(value: String): ConditionOption? = entries.firstNotNullOfOrNull { g -> g.options.firstOrNull { it.value == value } }
+
+        /** "저녁", or "오후 6시~7시 30분" for a range picked with 직접 정하기. */
+        fun timeLabel(value: String): String? =
+            if (value.startsWith(TimeBand.CUSTOM)) TimeBand.of(value)?.spoken else optionFor(value)?.label
+
+        /** The clock icon of 직접 정하기, for a stored custom range. */
+        val customTimeOption: ConditionOption get() = Time.options.last()
+    }
 }
 
-/** The message being written, shared by 06, 06-1, 07 and 08 while the app runs. */
+/** Label of the 07 option that picks a start and an end time. */
+internal const val CustomTime = "직접"
+
+/**
+ * The message being written, shared by 06, 06-1, 07 and 08 while the app runs.
+ * Offline it holds the Figma sentences (one per group); with the server one sentence and one voice.
+ */
 internal object MessageDraft {
     var group by mutableStateOf(ConditionGroup.Vehicle)
-    val option = mutableStateMapOf(ConditionGroup.Vehicle to "와이퍼", ConditionGroup.Time to "저녁")
-    val transcript = mutableStateMapOf(
+    val option = mutableStateMapOf(
+        ConditionGroup.Vehicle to "와이퍼",
+        ConditionGroup.Time to "저녁",
+        ConditionGroup.FirstStart to "첫 시동",
+        ConditionGroup.Arrival to "주차했을 때",
+        ConditionGroup.Place to "장소",
+    )
+    private val demoText = mutableStateMapOf(
         ConditionGroup.Vehicle to "비 오는 날엔 천천히 와",
         ConditionGroup.Time to "오늘도 고생했어, 조심히 와",
     )
+    private var liveText by mutableStateOf("")
+
+    /** Couple words put back into what the recognizer heard; underlined, and a tap undoes one. */
+    var fixes by mutableStateOf<List<WordFix.Change>>(emptyList())
+        private set
+
+    val voice = VoiceDraft(::hear)
+
+    /** A sentence given to a debug build with `--es heard`, taken as if it had been recorded. */
+    var pendingHeard: String? = null
+
+    /** What the recognizer wrote down, with the couple's words put back. */
+    fun hear(heard: String) {
+        val f = CoupleWords.fix(heard)
+        liveText = f.text
+        fixes = f.changes
+    }
+
+    fun revert(change: WordFix.Change) {
+        val f = WordFix.Fixed(liveText, fixes).revert(change)
+        liveText = f.text
+        fixes = f.changes
+    }
+
+    /** The range of 직접 정하기 (07), in 30-minute steps. */
+    var customStart by mutableStateOf(LocalTime(18, 0))
+    var customEnd by mutableStateOf(LocalTime(19, 30))
+    val customBand: TimeBand get() = TimeBand(customStart, customEnd)
+
+    /** What messages.condition_value stores for the option picked in [group]. */
+    fun value(group: ConditionGroup): String {
+        val opt = group.option(option[group])
+        return if (group == ConditionGroup.Time && opt.label == CustomTime) TimeBand.customValue(customStart, customEnd) else opt.value
+    }
+
+    /** Set once the message reached the server; the next visit to 06 starts a new one. */
+    var sent by mutableStateOf(false)
+
+    fun text(group: ConditionGroup): String = if (Session.live) liveText else demoText[group].orEmpty()
+
+    fun setText(group: ConditionGroup, text: String) {
+        if (Session.live) liveText = text else demoText[group] = text
+        fixes = emptyList()
+    }
+
+    fun reset() {
+        liveText = ""
+        fixes = emptyList()
+        voice.clear()
+        sent = false
+    }
 }
 
 private val CardInner = arrayOf(Shadow(6f, 6f, 12f, Color(0xD9FFFFFF)), Shadow(-6f, -8f, 16f, Color(0x0D292124)))
@@ -117,17 +233,59 @@ private val KeyboardBg = Color(0xFFF3EFEA)
 /** 06 메시지 남기기 (차량 기능) and 07 메시지 남기기 (시간대). */
 @Composable
 internal fun MessageScreen(nav: Nav, group: ConditionGroup) {
-    SideEffect { MessageDraft.group = group }
+    SideEffect {
+        MessageDraft.group = group
+        PlaceDraft.onMap = { nav.go("06-5") }
+    }
+    LaunchedEffect(Unit) {
+        if (MessageDraft.sent) MessageDraft.reset()
+        CoupleWords.refresh()
+        MessageDraft.pendingHeard?.let {
+            MessageDraft.pendingHeard = null
+            MessageDraft.hear(it)
+        }
+    }
+    val (action, run) = rememberAction()
+    val playback = rememberVoicePlayback()
+    val draft = MessageDraft.voice
     HeartWindow(Tab.Message, nav) {
         MessagePanel(
             group = group,
-            transcript = MessageDraft.transcript[group].orEmpty(),
+            transcript = MessageDraft.text(group),
             animate = true,
             onGroup = { if (it != group) nav.go(it.screen) },
             onOption = { MessageDraft.option[group] = it },
             onEdit = { nav.go("06-1") },
-            onCancel = { nav.back() },
-            onSend = { nav.go("08") },
+            onCancel = {
+                draft.stop()
+                nav.back()
+            },
+            onSend = {
+                if (!Session.live) {
+                    nav.go("08")
+                } else {
+                    if (draft.isRecording) draft.stop()
+                    playback.stop()
+                    val value = MessageDraft.value(group)
+                    val place = if (group == ConditionGroup.Place) PlaceDraft.chosen else null
+                    if (MessageDraft.text(group).isBlank() && draft.recording == null) {
+                        action.error = "녹음하거나 글자를 써 주세요"
+                    } else if (group == ConditionGroup.Place && place == null) {
+                        action.error = "메시지가 열릴 장소를 골라 주세요"
+                    } else {
+                        run({
+                            draft.awaitWords()
+                            Session.sendMessage(group.data, value, MessageDraft.text(group).trim(), draft.recording, place)
+                        }) {
+                            MessageDraft.sent = true
+                            nav.go("08")
+                        }
+                    }
+                }
+            },
+            voice = { if (Session.live) VoicePill(draft, playback, compact = false) else RecordedVoice() },
+            error = action.error ?: draft.error,
+            busy = action.busy,
         )
     }
 }
@@ -136,11 +294,14 @@ internal fun MessageScreen(nav: Nav, group: ConditionGroup) {
 @Composable
 internal fun MessageEditScreen(nav: Nav) {
     val group = MessageDraft.group
-    var text by remember { mutableStateOf(MessageDraft.transcript[group].orEmpty()) }
+    val drafted = MessageDraft.text(group)
+    var text by remember { mutableStateOf(drafted) }
+    // a new recording made here replaces the sentence being edited, as it does on 06
+    LaunchedEffect(drafted) { text = drafted }
     var shift by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         HeartWindow(Tab.Message, nav) {
-            MessagePanel(group, text, animate = false, editing = true)
+            MessagePanel(group, text, animate = false, editing = true, voice = { if (Session.live) VoicePill(MessageDraft.voice, rememberVoicePlayback(), compact = false) else RecordedVoice() })
         }
         HangulKeyboard(
             shift = shift,
@@ -149,7 +310,7 @@ internal fun MessageEditScreen(nav: Nav) {
             onDelete = { text = text.dropLast(1) },
             onText = { text += it },
             onDone = {
-                MessageDraft.transcript[group] = text
+                MessageDraft.setText(group, text)
                 nav.go(group.screen)
             },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -161,15 +322,30 @@ internal fun MessageEditScreen(nav: Nav) {
 @Composable
 internal fun MessageSentScreen(nav: Nav) {
     val group = MessageDraft.group
-    val text = MessageDraft.transcript[group].orEmpty()
+    val text = MessageDraft.text(group)
     val option = MessageDraft.option[group].orEmpty()
-    val quote = "\"$text\"${objectParticle(text)} 남겼어요."
+    val partner = Session.view.partnerName
+    val quote = if (text.isBlank()) "음성 메시지를 남겼어요." else "\"$text\"${objectParticle(text)} 남겼어요."
     val toast = when (group) {
-        ConditionGroup.Vehicle -> "$quote 서연님이 $option${objectParticle(option)} 켜면 열려요"
-        ConditionGroup.Time -> "$quote ${option}에 열려요"
+        ConditionGroup.Vehicle -> {
+            val verb = if (option == "창문 열림") "창문을 열면" else "$option${objectParticle(option)} 켜면"
+            "$quote ${partner}님이 $verb 열려요"
+        }
+        ConditionGroup.Time ->
+            if (option == CustomTime) "$quote ${MessageDraft.customBand.spoken} 사이에 열려요" else "$quote ${option}에 열려요"
+        ConditionGroup.FirstStart -> "$quote ${partner}님이 그날 처음 시동을 걸면 열려요"
+        ConditionGroup.Arrival ->
+            if (option == "목적지 도착") "$quote ${partner}님이 목적지에 도착하면 열려요" else "$quote ${partner}님이 주차하면 열려요"
+        ConditionGroup.Place -> "$quote ${partner}님이 ${PlaceDraft.place?.name ?: "고른 장소"} 근처에 오면 열려요"
     }
+    val playback = rememberVoicePlayback()
     HeartWindow(Tab.Message, nav) {
-        MessagePanel(group, text, animate = false, onEdit = { nav.go("06-1") }, onCancel = { nav.back() })
+        MessagePanel(
+            group, text, animate = false,
+            onEdit = if (Session.live) null else ({ nav.go("06-1") }),
+            onCancel = { nav.back() },
+            voice = { if (Session.live) VoicePill(MessageDraft.voice, playback, compact = false) else RecordedVoice() },
+        )
         HeartBurst()
         Toast(toast, Modifier.align(Alignment.TopCenter).offset(y = 999.dp))
     }
@@ -188,6 +364,9 @@ private fun MessagePanel(
     onEdit: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
     onSend: (() -> Unit)? = null,
+    voice: @Composable () -> Unit = { RecordedVoice() },
+    error: String? = null,
+    busy: Boolean = false,
 ) {
     val c = Heart.colors
     val shape = RoundedCornerShape(40.dp)
@@ -204,7 +383,7 @@ private fun MessagePanel(
     ) {
         Conditions(group, animate, onGroup, onOption, Modifier.weight(1f).fillMaxHeight())
         Box(Modifier.width(3.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(c.pinkMid))
-        MessageColumn(transcript, editing, onEdit, onCancel, onSend, Modifier.weight(1f).fillMaxHeight())
+        MessageColumn(transcript, editing, onEdit, onCancel, onSend, voice, error, busy, Modifier.weight(1f).fillMaxHeight())
     }
 }
 
@@ -225,7 +404,10 @@ private fun Conditions(
         Text("하나를 골라요. 그 순간이 오면 메시지가 열려요", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
         Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            PlaceTile(Modifier.width(212.dp).height(352.dp).then(stagger(0, animate)))
+            PlaceTile(
+                group == ConditionGroup.Place, onGroup?.let { { it(ConditionGroup.Place) } },
+                Modifier.width(212.dp).height(352.dp).then(stagger(0, animate)),
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CategoryTile(
@@ -238,18 +420,25 @@ private fun Conditions(
                     CategoryTile(
                         "첫 시동", "그날 처음 켤 때",
                         TileIcon("s06_icon_ignition", null, Inset.pct(18.75f, 15.63f, 12.5f, 15.63f), Inset.pct(5.45f)),
-                        false, animate, null, Modifier.weight(1f).then(stagger(2, animate)),
+                        group == ConditionGroup.FirstStart, animate, onGroup?.let { { it(ConditionGroup.FirstStart) } },
+                        Modifier.weight(1f).then(stagger(2, animate)),
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CategoryTile(
-                        "도착", "목적지, 주차",
+                        "도착",
+                        if (group == ConditionGroup.Arrival) MessageDraft.option[ConditionGroup.Arrival].orEmpty() else "목적지, 주차",
                         TileIcon("s06_icon_arrival", null, Inset.pct(12.5f, 25f, 9.38f, 25f), Inset.pct(4.8f, 7.5f)),
-                        false, animate, null, Modifier.weight(1f).then(stagger(3, animate)),
+                        group == ConditionGroup.Arrival, animate, onGroup?.let { { it(ConditionGroup.Arrival) } },
+                        Modifier.weight(1f).then(stagger(3, animate)),
                     )
                     CategoryTile(
                         "시간대",
-                        if (timeOn) MessageDraft.option[ConditionGroup.Time].orEmpty() else "새벽부터 밤까지",
+                        when {
+                            !timeOn -> "새벽부터 밤까지"
+                            MessageDraft.option[ConditionGroup.Time] == CustomTime -> MessageDraft.customBand.spoken
+                            else -> MessageDraft.option[ConditionGroup.Time].orEmpty()
+                        },
                         TileIcon("s06_icon_time_off", "s07_icon_time_on", Inset.pct(12.5f), Inset.pct(5f)),
                         timeOn, animate, onGroup?.let { { it(ConditionGroup.Time) } },
                         Modifier.weight(1f).then(stagger(4, animate)),
@@ -259,8 +448,11 @@ private fun Conditions(
         }
         Spacer(Modifier.height(18.dp))
         DetailCard(group, animate, onOption, Modifier.then(stagger(5, animate)))
-        Spacer(Modifier.height(28.dp))
-        StartTime()
+        // the custom range takes the room of the start time line
+        if (!(group == ConditionGroup.Time && MessageDraft.option[group] == CustomTime)) {
+            Spacer(Modifier.height(28.dp))
+            StartTime()
+        }
     }
 }
 
@@ -268,7 +460,7 @@ private fun Conditions(
 private class TileIcon(val off: String, val on: String?, val inset: Inset, val bleed: Inset)
 
 @Composable
-private fun PlaceTile(modifier: Modifier) {
+private fun PlaceTile(selected: Boolean, onClick: (() -> Unit)?, modifier: Modifier) {
     val c = Heart.colors
     val shape = RoundedCornerShape(26.dp)
     Column(
@@ -277,13 +469,18 @@ private fun PlaceTile(modifier: Modifier) {
             .clip(shape)
             .background(c.bgCard)
             .innerShadow(shape, *CardInner)
-            .border(2.dp, c.line, shape)
+            .border(if (selected) 3.dp else 2.dp, if (selected) c.pinkAccent else c.line, shape)
+            .tap(onClick)
             .padding(start = 24.dp, end = 18.dp, top = 20.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Layered(Modifier.size(40.dp)) { svg("s06_icon_place", Inset.pct(9.38f, 18.75f), Inset.pct(4.62f, 6f)) }
         Text("장소", style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-        Text("지도에서 선택", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
+        val name = PlaceDraft.place?.name?.takeIf { selected }
+        Text(
+            name ?: "지도에서 선택", style = HeartType.Label, color = if (name != null) c.pinkDeep else c.textSecondary,
+            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
         Spacer(Modifier.height(10.dp))
         // Map preview: the place where the map SDK goes.
         Box(
@@ -352,18 +549,33 @@ private fun DetailCard(group: ConditionGroup, animate: Boolean, onOption: ((Stri
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(group.head, style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
-            Text("하나만 선택", style = HeartType.Label, color = c.textTertiary, maxLines = 1)
+            if (group != ConditionGroup.FirstStart) Text("하나만 선택", style = HeartType.Label, color = c.textTertiary, maxLines = 1)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            group.options.forEach { opt ->
-                OptionTile(opt, opt.label == current, animate, onOption?.let { { it(opt.label) } }, Modifier.weight(1f))
+        if (group == ConditionGroup.Place) {
+            PlaceDetail()
+        } else if (group == ConditionGroup.FirstStart) {
+            // nothing to pick: one line on when the day starts
+            Text(
+                "연인이 그날 처음 시동을 걸면 열려요. 하루는 새벽 4시에 시작해요",
+                style = HeartType.Body, color = c.textSecondary, modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                group.options.forEach { opt ->
+                    // 07 writes each band's hours under its name
+                    val hours = if (group != ConditionGroup.Time) null
+                        else if (opt.label == CustomTime) "고르기"
+                        else TimeBand.of(opt.value)?.let { "${it.start.hour}~${it.end.hour}시" }
+                    OptionTile(opt, opt.label == current, animate, onOption?.let { { it(opt.label) } }, Modifier.weight(1f), hours)
+                }
             }
+            if (group == ConditionGroup.Time && current == CustomTime) CustomTimeRange(editable = onOption != null)
         }
     }
 }
 
 @Composable
-private fun OptionTile(opt: ConditionOption, selected: Boolean, animate: Boolean, onClick: (() -> Unit)?, modifier: Modifier) {
+private fun OptionTile(opt: ConditionOption, selected: Boolean, animate: Boolean, onClick: (() -> Unit)?, modifier: Modifier, sub: String? = null) {
     val c = Heart.colors
     val f = selectFraction(selected, animate)
     val shape = RoundedCornerShape(20.dp)
@@ -375,14 +587,65 @@ private fun OptionTile(opt: ConditionOption, selected: Boolean, animate: Boolean
             .innerShadow(shape, *CardInner)
             .border(bw, lerp(c.line, c.pinkAccent, f), shape)
             .tap(onClick)
-            .padding(top = 18.dp + bw, bottom = 16.dp + bw),
+            // a tile with hours under its name keeps the same height as one without
+            .padding(top = (if (sub != null) 10.dp else 18.dp) + bw, bottom = (if (sub != null) 8.dp else 16.dp) + bw),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(if (sub != null) 2.dp else 10.dp, Alignment.CenterVertically),
     ) {
         val tint = lerp(OptionGray, c.pinkAccent, f)
-        Layered(Modifier.size(36.dp)) { svg(opt.icon, opt.inset, opt.bleed, Modifier.tint(tint)) }
+        Layered(Modifier.size(if (sub != null) 30.dp else 36.dp)) { svg(opt.icon, opt.inset, opt.bleed, Modifier.tint(tint)) }
         Text(opt.label, style = HeartType.Label, color = lerp(c.textSecondary, c.pinkDeep, f), maxLines = 1, softWrap = false)
+        if (sub != null) Text(sub, style = HeartType.Small, color = lerp(c.textTertiary, c.pinkDeep, f * 0.6f), maxLines = 1, softWrap = false)
     }
+}
+
+/** 직접 정하기 (07): the start and the end, each moved 30 minutes at a time. */
+@Composable
+private fun CustomTimeRange(editable: Boolean) {
+    val c = Heart.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.pinkLight).padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TimeStepper("시작", MessageDraft.customStart, editable) { t ->
+            MessageDraft.customStart = t
+            if (MessageDraft.customEnd == t) MessageDraft.customEnd = t.plusMinutes(30)
+        }
+        Text("~", style = HeartType.BodyStrong, color = c.textSecondary)
+        TimeStepper("끝", MessageDraft.customEnd, editable) { t ->
+            MessageDraft.customEnd = t
+            if (MessageDraft.customStart == t) MessageDraft.customStart = t.plusMinutes(-30)
+        }
+    }
+}
+
+@Composable
+private fun TimeStepper(title: String, time: LocalTime, editable: Boolean, onChange: (LocalTime) -> Unit) {
+    val c = Heart.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = HeartType.Small, color = c.textSecondary, maxLines = 1)
+        StepButton("−", editable) { onChange(time.plusMinutes(-30)) }
+        val (part, clock) = TimeBand.korean(time)
+        Text("$part $clock", style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1, softWrap = false)
+        StepButton("+", editable) { onChange(time.plusMinutes(30)) }
+    }
+}
+
+@Composable
+private fun StepButton(mark: String, enabled: Boolean, onClick: () -> Unit) {
+    val c = Heart.colors
+    Box(
+        Modifier.size(44.dp).clip(CircleShape).background(c.bgCard).border(2.dp, c.line, CircleShape)
+            .tap(onClick.takeIf { enabled }),
+        contentAlignment = Alignment.Center,
+    ) { Text(mark, style = HeartType.BodyStrong, color = c.textPrimary) }
+}
+
+/** Moves a clock time by [minutes], wrapping past midnight. */
+private fun LocalTime.plusMinutes(minutes: Int): LocalTime {
+    val total = ((hour * 60 + minute + minutes) % 1440 + 1440) % 1440
+    return LocalTime(total / 60, total % 60)
 }
 
 @Composable
@@ -400,8 +663,9 @@ private fun StartTime() {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val from = remember { if (Session.live) "${koreanMomentWithDay(Clock.System.now())}부터" else "11월 7일 (토) 오전 7:00부터" }
         Text("열리기 시작하는 시각", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
-        Text("11월 7일 (토) 오전 7:00부터", style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
+        Text(from, style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
     }
 }
 
@@ -412,6 +676,9 @@ private fun MessageColumn(
     onEdit: (() -> Unit)?,
     onCancel: (() -> Unit)?,
     onSend: (() -> Unit)?,
+    voice: @Composable () -> Unit,
+    error: String?,
+    busy: Boolean,
     modifier: Modifier,
 ) {
     val c = Heart.colors
@@ -421,24 +688,34 @@ private fun MessageColumn(
             FigmaSvg("s06_doodle_heart", Modifier.size(36.dp))
         }
         Spacer(Modifier.height(10.dp))
-        Text("받는 사람  서연", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
+        Text("받는 사람  ${Session.view.partnerName}", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
         Spacer(Modifier.height(26.dp))
-        RecordedVoice()
+        voice()
         Spacer(Modifier.height(22.dp))
         Text("받아쓴 글자 (보내기 전에 확인해요)", style = HeartType.Label, color = c.textSecondary, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
-        TranscriptBox(transcript, editing, onEdit)
+        val fixes = if (editing) emptyList() else MessageDraft.fixes
+        TranscriptBox(
+            transcript, editing, onEdit,
+            placeholder = if (MessageDraft.voice.transcribing) Listening else "글자를 누르면 직접 쓸 수 있어요",
+            fixes = fixes, onRevert = MessageDraft::revert,
+        )
         Spacer(Modifier.height(10.dp))
         Text(
-            if (editing) "고치는 중이에요. 다 고치면 키보드의 완료를 눌러요" else "글자를 누르면 고칠 수 있어요. 그대로 두면 이 문장으로 보내져요",
+            when {
+                editing -> "고치는 중이에요. 다 고치면 키보드의 완료를 눌러요"
+                fixes.isNotEmpty() -> FixHint
+                else -> "글자를 누르면 고칠 수 있어요. 그대로 두면 이 문장으로 보내져요"
+            },
             style = HeartType.Label, color = c.textTertiary, modifier = Modifier.fillMaxWidth(),
         )
+        ErrorLine(error)
         Spacer(Modifier.weight(1f))
         SecondaryButton("녹음 없이 글자로만 쓰기", Modifier.fillMaxWidth(), onEdit)
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             SecondaryButton("취소", Modifier.width(200.dp), onCancel)
-            PrimaryButton("메시지 남기기", Modifier.weight(1f), onSend)
+            PrimaryButton(if (busy) "남기는 중" else "메시지 남기기", Modifier.weight(1f), onSend.takeUnless { busy })
         }
     }
 }
@@ -472,12 +749,44 @@ private fun RecordedVoice() {
     }
 }
 
+/** The empty text box while the recognizer is still writing down the recording. */
+internal const val Listening = "말하는 대로 적고 있어요"
+
+/** Shown under a sentence with couple words put back in. */
+internal const val FixHint = "밑줄 친 말은 우리 말로 고쳤어요. 누르면 들은 대로 돌아가요"
+
+private const val CursorId = "cursor"
+
 @Composable
-private fun TranscriptBox(text: String, editing: Boolean, onEdit: (() -> Unit)?) {
+internal fun TranscriptBox(
+    text: String,
+    editing: Boolean,
+    onEdit: (() -> Unit)?,
+    placeholder: String = "글자를 누르면 직접 쓸 수 있어요",
+    fixes: List<WordFix.Change> = emptyList(),
+    onRevert: ((WordFix.Change) -> Unit)? = null,
+) {
     val c = Heart.colors
     val shape = RoundedCornerShape(22.dp)
     val bw = if (editing) 3.dp else 2.dp
     val style = HeartType.gaegu(40f, spacing = -0.04f).copy(lineHeight = 50.sp)
+    if (text.isEmpty() && !editing) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(c.bgCard)
+                .border(bw, c.pinkMid, shape)
+                .tap(onEdit)
+                .padding(start = 26.dp + bw, end = 20.dp + bw, top = 18.dp + bw, bottom = 18.dp + bw),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(placeholder, style = style, color = c.textTertiary, modifier = Modifier.weight(1f))
+            Layered(Modifier.size(30.dp)) { svg("s06_edit", Inset.pct(17.19f, 18.75f, 18.75f, 18.75f), Inset.pct(5.85f, 6f)) }
+        }
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -490,13 +799,36 @@ private fun TranscriptBox(text: String, editing: Boolean, onEdit: (() -> Unit)?)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (editing) {
-            Text(text, style = style, color = c.textPrimary, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f, fill = false))
             val blink = rememberInfiniteTransition(label = "cursor")
             val t by blink.animateFloat(0f, 1f, infiniteRepeatable(tween(1000, easing = LinearEasing)), label = "cursor")
-            Box(Modifier.size(4.dp, 44.dp).alpha(if (t < 0.5f) 1f else 0f).clip(RoundedCornerShape(2.dp)).background(c.pinkAccent))
-            Spacer(Modifier.weight(1f))
+            // the cursor rides right after the last letter, so a long sentence wraps and stays readable
+            val cursor = with(LocalDensity.current) { Placeholder(14.dp.toSp(), 44.dp.toSp(), PlaceholderVerticalAlign.TextCenter) }
+            Text(
+                buildAnnotatedString {
+                    append(text)
+                    appendInlineContent(CursorId, "|")
+                },
+                style = style,
+                color = c.textPrimary,
+                modifier = Modifier.weight(1f),
+                inlineContent = mapOf(
+                    CursorId to InlineTextContent(cursor) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                            Box(Modifier.size(4.dp, 44.dp).alpha(if (t < 0.5f) 1f else 0f).clip(RoundedCornerShape(2.dp)).background(c.pinkAccent))
+                        }
+                    },
+                ),
+            )
         } else {
-            Text(text, style = style, color = c.textPrimary, modifier = Modifier.weight(1f))
+            // couple words put back by WordFix are underlined; a tap on one puts back what was heard
+            val shown = buildAnnotatedString {
+                append(text)
+                fixes.filter { it.end <= text.length }.forEach { ch ->
+                    addStyle(SpanStyle(color = c.pinkDeep, textDecoration = TextDecoration.Underline), ch.start, ch.end)
+                    if (onRevert != null) addLink(LinkAnnotation.Clickable("fix:${ch.start}") { onRevert(ch) }, ch.start, ch.end)
+                }
+            }
+            Text(shown, style = style, color = c.textPrimary, modifier = Modifier.weight(1f))
         }
         Layered(Modifier.size(30.dp)) { svg("s06_edit", Inset.pct(17.19f, 18.75f, 18.75f, 18.75f), Inset.pct(5.85f, 6f)) }
     }
@@ -576,7 +908,7 @@ private fun Toast(text: String, modifier: Modifier) {
 // ---------------------------------------------------------------- 06-1 keyboard
 
 @Composable
-private fun HangulKeyboard(
+internal fun HangulKeyboard(
     shift: Boolean,
     onKey: (Char) -> Unit,
     onShift: () -> Unit,
@@ -658,7 +990,7 @@ private val FinalSplit = FinalPairs.entries.associate { (pair, joined) -> joined
 
 private fun syllable(cho: Int, jung: Int, jong: Int) = (0xAC00 + (cho * 21 + jung) * 28 + jong).toChar()
 
-private fun typeJamo(text: String, key: Char): String {
+internal fun typeJamo(text: String, key: Char): String {
     val last = text.lastOrNull() ?: return key.toString()
     val head = text.dropLast(1)
     val vowel = JUNG.indexOf(key)
