@@ -1,0 +1,19 @@
+{
+  "name": "heart-blink-partner-sim",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plays the partner's car against the HeartBlink Supabase backend",
+  "type": "module",
+  "bin": {
+    "partner-sim": "./index.mjs"
+  },
+  "scripts": {
+    "help": "node index.mjs --help"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  }
+}
