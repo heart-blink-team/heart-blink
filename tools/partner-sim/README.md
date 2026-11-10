@@ -36,7 +36,7 @@ PC 한 대와 에뮬레이터 하나로 커플 기능을 시험할 때, 이 도�
 `send` 조건묶음과 조건값:
 
 - `vehicle`: wiper, headlight, seat_heater, aircon, window
-- `time`: dawn, morning, noon, afternoon, evening, night
+- `time`: dawn, morning, noon, afternoon, evening, night, 또는 직접 정한 범위 `custom:HHMM-HHMM` (예: `custom:1800-1930`, 자정을 넘기면 `custom:2300-0130`)
 - `arrival`: destination, parked
 - `first_start`: first_start
 - `place`: place (이때 `--lat`, `--lng` 필요, `--place-name`, `--radius`는 선택)

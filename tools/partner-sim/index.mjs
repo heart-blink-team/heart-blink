@@ -25,7 +25,7 @@ const HELP = `하트깜빡이 상대 차 시뮬레이터
               --place-name 이름 --lat 37.5 --lng 127.0 --radius 200 (조건묶음 place일 때)
         조건묶음/조건값:
           vehicle      wiper, headlight, seat_heater, aircon, window
-          time         dawn, morning, noon, afternoon, evening, night
+          time         dawn, morning, noon, afternoon, evening, night, custom:HHMM-HHMM (직접 정하기)
           arrival      destination, parked
           first_start  first_start
           place        place
@@ -43,12 +43,12 @@ const HELP = `하트깜빡이 상대 차 시뮬레이터
 const ERROR_TEXT = {
   already_connected: '이미 연결된 차가 있어요',
   plate_not_found: '그 번호로 가입한 차가 없어요',
-  own_plate: '내 차 번호예요. 상대 차 번호를 넣어 주세요',
+  own_plate: '내 차량 번호예요. 상대 차량 번호를 넣어 주세요',
   partner_busy: '상대가 이미 다른 차와 연결되어 있어요',
   no_request: '받은 연결 요청이 없어요',
   not_connected: '아직 연결된 차가 없어요',
   profiles_plate_key: '이미 다른 차가 쓰고 있는 번호예요',
-  profiles_plate_check: '차 번호를 12가3456처럼 넣어 주세요',
+  profiles_plate_check: '차량 번호를 12가3456처럼 넣어 주세요',
   profiles_name_check: '이름은 1자에서 20자까지 쓸 수 있어요',
   nickname_check: '애칭은 5자까지 쓸 수 있어요',
   body_check: '글은 200자까지 쓸 수 있어요',
@@ -62,6 +62,14 @@ const GROUPS = {
   first_start: ['first_start'],
   place: ['place'],
 };
+
+/** A range picked with 직접 정하기 on 07, the way the app stores it: "custom:1800-1930". */
+function isCustomTime(value) {
+  const m = /^custom:(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(value);
+  if (!m) return false;
+  const [h1, m1, h2, m2] = m.slice(1).map(Number);
+  return h1 < 24 && h2 < 24 && m1 < 60 && m2 < 60;
+}
 
 class UserError extends Error {}
 
@@ -243,7 +251,11 @@ const commands = {
   async send({ supabase, me }, args, options) {
     const [group, value, ...textParts] = args;
     if (!GROUPS[group]) throw new UserError(`조건묶음은 ${Object.keys(GROUPS).join(', ')} 중 하나예요`);
-    if (!GROUPS[group].includes(value)) throw new UserError(`${group} 의 조건값은 ${GROUPS[group].join(', ')} 중 하나예요`);
+    const custom = group === 'time' && isCustomTime(value);
+    if (!custom && !GROUPS[group].includes(value)) {
+      const extra = group === 'time' ? ', custom:HHMM-HHMM' : '';
+      throw new UserError(`${group} 의 조건값은 ${GROUPS[group].join(', ')}${extra} 중 하나예요`);
+    }
     const couple = await currentCouple(supabase, me);
     if (!couple || couple.status !== 'active') throw new UserError(ERROR_TEXT.not_connected);
     const row = {
