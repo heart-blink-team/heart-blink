@@ -44,6 +44,13 @@ object NaviWatch {
     /** Asks the navigation where the car is now. */
     fun requestHere() = ask { it.getCurrentLocationInfo() }
 
+    /** The navigation says the car arrived at [name]: the arrival screen shows it and 목적지 도착 messages open. */
+    fun arrived(name: String?) {
+        arrivedAt = name
+        Log.i(TAG, "arrived at $name")
+        MessageOpener.onDestination()
+    }
+
     private var bookmarks = emptyList<Place>()
     private var recents = emptyList<Place>()
 
@@ -55,11 +62,7 @@ object NaviWatch {
         navi = n
         n.addListener(object : NaviHelperEventListener {
             override fun onDestinationArrived(info: DestinationArrivedInfo) {
-                main.post {
-                    arrivedAt = info.name
-                    Log.i(TAG, "arrived at ${info.name}")
-                    MessageOpener.onDestination()
-                }
+                main.post { arrived(info.name) }
             }
 
             override fun onCurrentLocationInfo(info: CurrentLocationInfo) {

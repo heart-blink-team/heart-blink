@@ -2,6 +2,7 @@ package kr.heartblink.car
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import kr.heartblink.car.app.CarSignals
 import kr.heartblink.car.app.DriveTalk
 import kr.heartblink.car.app.HeartService
 import kr.heartblink.car.app.MessageOpener
+import kr.heartblink.car.app.NaviWatch
 import kr.heartblink.car.app.Session
 import kr.heartblink.car.ui.screen.Arrival
 import kr.heartblink.car.ui.screen.MessageDraft
@@ -61,6 +63,11 @@ class MainActivity : ComponentActivity() {
             // test the first start of the day without waiting for 4 a.m.
             if (intent?.getBooleanExtra("new_day", false) == true) {
                 getSharedPreferences("opener", MODE_PRIVATE).edit().remove("first_start_day").apply()
+            }
+            // test 목적지 도착 on the emulator, whose navigation never moves: report the arrival a few seconds
+            // after the start, once the waiting messages have loaded
+            intent?.getStringExtra("arrive")?.let { name ->
+                Handler(mainLooper).postDelayed({ NaviWatch.arrived(name) }, 10_000)
             }
         }
         HeartService.start(this)
