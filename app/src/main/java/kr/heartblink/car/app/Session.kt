@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
@@ -233,9 +234,16 @@ object Session {
             if (st.bothAnswered) revealed = st else question = st
         }
 
-    /** Leaves a message that opens in my partner's car when [group]/[value] happens. */
-    suspend fun sendMessage(group: ConditionGroup, value: String, text: String, audio: Recording?, place: Place? = null): Result<Message> =
-        requireRepo().sendMessage(group, value, place = place, opensFrom = null, text = text.trim(), audio = audio)
+    /** Leaves a message that opens in my partner's car when [group]/[value] happens, not before [opensFrom]. */
+    suspend fun sendMessage(
+        group: ConditionGroup,
+        value: String,
+        text: String,
+        audio: Recording?,
+        place: Place? = null,
+        opensFrom: Instant? = null,
+    ): Result<Message> =
+        requireRepo().sendMessage(group, value, place = place, opensFrom = opensFrom, text = text.trim(), audio = audio)
 
     /** Reloads the couple at once (the realtime update can take a moment). */
     suspend fun refresh() {

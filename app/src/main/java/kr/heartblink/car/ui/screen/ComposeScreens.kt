@@ -168,7 +168,7 @@ private fun LiveQuestion(nav: Nav) {
                         playback.stop()
                         editing = false
                         if (AnswerDraft.text.isBlank() && draft.recording == null) {
-                            action.error = "녹음하거나 글자를 써 주세요"
+                            action.error = "녹음하거나 글을 써 주세요"
                         } else {
                             run({
                                 draft.awaitWords()
@@ -192,7 +192,7 @@ private fun LiveQuestion(nav: Nav) {
                     }
                 }
             } else {
-                HiddenCard("${partner}의 답", if (mine == null) "내가 답하면 함께 열려요" else "${partner}님이 답하면 열려요")
+                HiddenCard("${partner}의 답", if (mine == null) "둘 다 답하면 열려요" else "${partner}님이 답하면 열려요")
             }
         }
         if (editing) {
@@ -379,11 +379,11 @@ private fun AnswerInputCard(
     AnswerFrame("나의 답", MyTape, MyCardAt, lines = false) {
         Spacer(Modifier.height(30.dp))
         val fixed = !editing && AnswerDraft.fixes.isNotEmpty()
-        Text(if (fixed) FixHint else "말로 남기거나 글자로 써요", style = HeartType.Label, color = c.textSecondary, maxLines = 2)
+        Text(if (fixed) FixHint else "말로 남기거나 글로 써요", style = HeartType.Label, color = c.textSecondary, maxLines = 2)
         Spacer(Modifier.height(14.dp))
         TranscriptBox(
             AnswerDraft.text, editing, onEdit,
-            placeholder = if (AnswerDraft.voice.transcribing) Listening else "눌러서 글자로 쓰기",
+            placeholder = if (AnswerDraft.voice.transcribing) Listening else "눌러서 글로 쓰기",
             fixes = if (editing) emptyList() else AnswerDraft.fixes, onRevert = AnswerDraft::revert,
         )
         Spacer(Modifier.height(20.dp))

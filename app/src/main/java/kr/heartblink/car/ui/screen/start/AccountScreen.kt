@@ -188,12 +188,12 @@ fun AccountScreen(nav: Nav, v: CoupleView = CoupleView.Demo) {
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 AccountCard(fadeUp(1), PaddingValues(vertical = 12.dp)) {
-                    SettingRow(22, "편집", onAction = { nav.go("03") }) {
+                    SettingRow(22, "바꾸기", onAction = { nav.go("03") }) {
                         OneLine("기념일 (처음 만난 날)", HeartType.Label, c.textSecondary)
-                        OneLine("${v.firstMet?.let(::koreanDate) ?: "아직 정하지 않았어요"}, D+$days", HeartType.Headline, c.textPrimary)
+                        OneLine(v.firstMet?.let { "${koreanDate(it)}, D+$days" } ?: "아직 정하지 않았어요", HeartType.Headline, c.textPrimary)
                     }
                     RowDivider()
-                    SettingRow(22, "변경", onAction = { nav.go("03") }) {
+                    SettingRow(22, "바꾸기", onAction = { nav.go("03") }) {
                         OneLine("${partner}님 차에 띄울 애칭", HeartType.Label, c.textSecondary)
                         OneLine(partnerNickname, NicknameHand, c.textPrimary)
                     }
