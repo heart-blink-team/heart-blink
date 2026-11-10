@@ -173,7 +173,7 @@ fun FirstStartSceneScreen(nav: Nav) {
     SceneScreen(
         nav = nav,
         title = "오늘 첫 시동을 걸었어요",
-        condition = "그날 첫 시동",
+        condition = "그날 첫 시동을 걸 때",
         conditionIcon = Glyph("s13_icon_start", Inset.pct(18.75f, 15.63f, 12.5f, 15.63f), Inset.pct(5.91f)),
         sentAt = "어젯밤 11:20에 남김",
         message = listOf("오늘 발표", "잘해, 응원해!"),
@@ -622,7 +622,7 @@ private fun look(m: Message): Look = when (m.group) {
         ConditionValue.AIRCON -> Look("에어컨을 켜는 순간 열렸어요", optionGlyph(m.conditionValue, StartGlyph), "에어컨을 켰어요", "에어컨을 켤 때", scene = AirconScene)
         else -> Look("창문을 여는 순간 열렸어요", optionGlyph(m.conditionValue, StartGlyph), "창문을 열었어요", "창문을 열 때", scene = WindowScene)
     }
-    DataGroup.FirstStart -> Look("오늘 첫 시동을 거는 순간 열렸어요", StartGlyph, "오늘 첫 시동을 걸었어요", "그날 첫 시동", scene = FirstStartScene)
+    DataGroup.FirstStart -> Look("오늘 첫 시동을 거는 순간 열렸어요", StartGlyph, "오늘 첫 시동을 걸었어요", "그날 첫 시동을 걸 때", scene = FirstStartScene)
     DataGroup.Arrival ->
         if (m.conditionValue == ConditionValue.PARKED) Look("주차하는 순간 열렸어요", FlagGlyph, "주차했어요", "주차했을 때", scene = mapScene("주차"))
         else Look(
@@ -631,7 +631,7 @@ private fun look(m: Message): Look = when (m.group) {
         )
     DataGroup.Place -> {
         val name = m.placeName?.takeIf { it.isNotBlank() } ?: "고른 장소"
-        Look("$name 근처에 오는 순간 열렸어요", PlaceGlyph, "$name 근처에 왔어요", "$name 근처에 가면", scene = PlaceScene)
+        Look("$name 근처에 오는 순간 열렸어요", PlaceGlyph, "$name 근처에 왔어요", "$name 근처에 갈 때", scene = PlaceScene)
     }
     DataGroup.Time, null -> {
         val label = ConditionGroup.timeLabel(m.conditionValue) ?: "고른 시간"

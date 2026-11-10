@@ -260,13 +260,14 @@ fun ConnectSendScreen(nav: Nav) {
                 }
             }
             Spacer(Modifier.height(14.dp))
-            val who = partnerName.ifEmpty { "상대" }
+            // "서연님", or just "상대" before the name is known ("상대님" sounds odd)
+            val who = if (partnerName.isEmpty()) "상대" else "${partnerName}님"
             Text(
                 when (step) {
                     0 -> if (wasWaiting) "요청이 수락되지 않았어요. 차량 번호를 확인하고 다시 보낼 수 있어요"
                     else "상대도 하트깜빡이에 이름과 차량 번호를 등록해 두어야 해요"
-                    1 -> "${who}님 차 화면에 연결 요청이 떴어요. 수락하면 바로 이어져요"
-                    else -> "${who}님이 요청을 수락했어요. 이제 애칭과 처음 만난 날을 정해요"
+                    1 -> "$who 차 화면에 연결 요청이 떴어요. 수락하면 바로 연결돼요"
+                    else -> "${who}${subjectParticle(who)} 요청을 수락했어요. 이제 애칭과 처음 만난 날을 정해요"
                 },
                 style = HeartType.Label, color = c.textTertiary,
             )
@@ -324,7 +325,7 @@ fun ConnectRequestScreen(nav: Nav) {
                 SecondaryButton("거절", Modifier.width(240.dp), onClick = {
                     if (!Session.live) nav.back() else run({ Session.respond(false, null) }) {}
                 })
-                PrimaryButton(if (action.busy) "잇는 중" else "수락하기", Modifier.weight(1f), onClick = {
+                PrimaryButton(if (action.busy) "연결하는 중" else "수락하기", Modifier.weight(1f), onClick = {
                     when {
                         !Session.live -> nav.go("03")
                         nickname.isBlank() -> action.error = "${requester}님 차에 띄울 애칭을 지어 주세요"

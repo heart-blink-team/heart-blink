@@ -64,7 +64,7 @@ val shopScreens: Map<String, @Composable (Nav) -> Unit> = linkedMapOf(
 fun ShopThemeScreen(nav: Nav) {
     val items = listOf(
         ShopItem("깜빡깜빡", null) { ThemeThumb("s21_blink") },
-        ShopItem("숨쉬는 하트", "1,500원") { ThemeThumb("s21_breathe") },
+        ShopItem("숨 쉬는 하트", "1,500원") { ThemeThumb("s21_breathe") },
         ShopItem("하트 배달", "1,500원") { ThemeThumb("s21_delivery") },
         ShopItem("하트 꾹", "1,500원") { ThemeThumb("s21_press") },
         ShopItem("하트 완성", "1,500원") { ThemeThumb("s21_complete") },

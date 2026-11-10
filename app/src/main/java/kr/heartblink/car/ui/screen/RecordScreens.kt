@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kr.heartblink.car.app.Session
 import kr.heartblink.car.data.ConditionValue
 import kr.heartblink.car.data.Message
@@ -136,20 +137,27 @@ private data class RecordMessage(
 )
 
 private val sentSamples = listOf(
-    RecordMessage(ConditionIcon.Wiper, "\"비 오는 날엔 천천히 와\"", "서연님이 와이퍼를 켜면, 음성 0:06", true, "아직 안 열림", false),
-    RecordMessage(ConditionIcon.Place, "\"1년 전 오늘, 여기서 처음 만났지\"", "처음 데이트한 카페 앞을 지나면, 글자", false, "아직 안 열림", false),
+    RecordMessage(ConditionIcon.Wiper, "\"비 오는 날엔 천천히 와\"", "서연님이 와이퍼를 켜면 열려요, 음성 0:06", true, "아직 안 열렸어요", false),
+    RecordMessage(ConditionIcon.Place, "\"1년 전 오늘, 여기서 처음 만났지\"", "서연님이 처음 데이트한 카페 근처에 가면 열려요", false, "아직 안 열렸어요", false),
     RecordMessage(ConditionIcon.Parked, "\"오늘도 고생 많았어. 집 잘 들어가~\"", "주차했을 때, 11월 5일 오후 7:40에 열림", true, "서연님이 들었어요", true),
-    RecordMessage(ConditionIcon.FirstStart, "\"오늘 발표 잘할 거야. 끝나면 맛있는 거 먹자!\"", "월요일 첫 시동, 11월 2일 오전 7:30에 열림", true, "서연님이 들었어요", true),
+    RecordMessage(ConditionIcon.FirstStart, "\"오늘 발표 잘할 거야. 끝나면 맛있는 거 먹자!\"", "그날 첫 시동을 걸 때, 11월 2일 오전 7:30에 열림", true, "서연님이 들었어요", true),
 )
 
 private val receivedSamples = listOf(
     RecordMessage(ConditionIcon.Headlight, "\"밤길 조심해서 와\"", "전조등을 켤 때, 11월 5일 오후 6:58에 들음", true, "다시 듣기", true, "전조등을 켤 때 열림"),
-    RecordMessage(ConditionIcon.FirstStart, "\"오늘 발표 잘할 거야. 끝나면 맛있는 거 먹자!\"", "월요일 첫 시동, 11월 2일 오전 7:30에 들음", true, "다시 듣기", true, "월요일 첫 시동에 열림"),
-    RecordMessage(ConditionIcon.Parked, "\"나도 이제 출발! 이따 봐\"", "회사 주차장 도착할 때, 11월 2일 오전 8:42에 들음", true, "다시 듣기", true, "회사 주차장 도착할 때 열림"),
+    RecordMessage(ConditionIcon.FirstStart, "\"오늘 발표 잘할 거야. 끝나면 맛있는 거 먹자!\"", "그날 첫 시동을 걸 때, 11월 2일 오전 7:30에 들음", true, "다시 듣기", true, "그날 첫 시동을 걸 때 열림"),
+    RecordMessage(ConditionIcon.Parked, "\"나도 이제 출발! 이따 봐\"", "회사 주차장에 도착할 때, 11월 2일 오전 8:42에 들음", true, "다시 듣기", true, "회사 주차장에 도착할 때 열림"),
 )
 
-/** "와이퍼를 켤 때", "저녁에", "첫 시동" ...: when a message opens, as the receiver reads it. */
-private fun opensWhen(m: Message): String = when (m.group) {
+private fun Message.placeLabel(): String = placeName?.takeIf { it.isNotBlank() } ?: "고른 장소"
+
+private fun Message.timeLabel(): String = ConditionGroup.timeLabel(conditionValue) ?: "고른 시간대"
+
+/**
+ * "와이퍼를 켤 때", "저녁에", "그날 첫 시동을 걸 때" ...: when a message opens, as the receiver reads it.
+ * Before a comma ("저녁, 11월 5일 오후 6:30에 열림") a time band goes without 에.
+ */
+private fun opensWhen(m: Message, timeParticle: Boolean = true): String = when (m.group) {
     DataGroup.Vehicle -> when (m.conditionValue) {
         ConditionValue.WIPER -> "와이퍼를 켤 때"
         ConditionValue.HEADLIGHT -> "전조등을 켤 때"
@@ -158,16 +166,25 @@ private fun opensWhen(m: Message): String = when (m.group) {
         ConditionValue.WINDOW -> "창문을 열 때"
         else -> "차량 기능을 켤 때"
     }
-    DataGroup.Time -> "${ConditionGroup.timeLabel(m.conditionValue) ?: "고른 시간대"}에"
-    DataGroup.FirstStart -> "첫 시동"
+    DataGroup.Time -> if (timeParticle) "${m.timeLabel()}에" else m.timeLabel()
+    DataGroup.FirstStart -> "그날 첫 시동을 걸 때"
     DataGroup.Arrival -> if (m.conditionValue == ConditionValue.PARKED) "주차했을 때" else "목적지에 도착할 때"
-    DataGroup.Place -> "${m.placeName?.takeIf { it.isNotBlank() } ?: "고른 장소"} 근처에 가면"
+    DataGroup.Place -> "${m.placeLabel()} 근처에 갈 때"
     null -> "조건이 맞을 때"
 }
 
-/** The same, as the sender reads it on 15 ("서연님이 와이퍼를 켜면"). */
-private fun opensWhenSent(m: Message, partnerName: String): String =
-    if (m.group == DataGroup.Vehicle) "${partnerName}님이 " + opensWhen(m).replace("켤 때", "켜면").replace("열 때", "열면") else opensWhen(m)
+/** The condition as the sender reads it on 15, before "열려요": "서연님이 와이퍼를 켜면", "저녁에". */
+private fun opensIf(m: Message, partnerName: String): String {
+    val who = "${partnerName}님이 "
+    return when (m.group) {
+        DataGroup.Vehicle -> who + opensWhen(m).replace("켤 때", "켜면").replace("열 때", "열면")
+        DataGroup.Time -> opensWhen(m)
+        DataGroup.FirstStart -> who + "그날 첫 시동을 걸면"
+        DataGroup.Arrival -> who + if (m.conditionValue == ConditionValue.PARKED) "주차하면" else "목적지에 도착하면"
+        DataGroup.Place -> who + "${m.placeLabel()} 근처에 가면"
+        null -> "조건이 맞으면"
+    }
+}
 
 private fun Message.quote(): String = if (body.isNotBlank()) "\"$body\"" else "음성 메시지"
 
@@ -175,14 +192,16 @@ private fun Message.toSentRow(partnerName: String): RecordMessage {
     val voice = audioPath != null
     val opened = openedAt
     val detail = if (opened == null) {
-        "${opensWhenSent(this, partnerName)}, ${if (voice) "음성 ${durationText(audioMs ?: 0)}" else "글자"}"
+        // "12월 24일 (목)부터 저녁에 열려요" while a later start has not come yet
+        val from = opensFrom?.takeIf { it > Clock.System.now() }?.let { "${koreanStart(it)} " }.orEmpty()
+        "$from${opensIf(this, partnerName)} 열려요" + if (voice) ", 음성 ${durationText(audioMs ?: 0)}" else ""
     } else {
-        "${opensWhenSent(this, partnerName)}, ${koreanMoment(opened)}에 열림"
+        "${opensWhen(this, timeParticle = false)}, ${koreanMoment(opened)}에 열림"
     }
     val status = when {
         heardAt != null -> "${partnerName}님이 들었어요"
         opened != null -> "열렸어요"
-        else -> "아직 안 열림"
+        else -> "아직 안 열렸어요"
     }
     return RecordMessage(ConditionIcon.of(this), quote(), detail, voice, status, opened != null, message = this)
 }
@@ -192,9 +211,9 @@ private fun Message.toReceivedRow(): RecordMessage {
     val heard = heardAt
     val opened = openedAt
     val detail = when {
-        heard != null -> "${opensWhen(this)}, ${koreanMoment(heard)}에 들음"
-        opened != null -> "${opensWhen(this)}, ${koreanMoment(opened)}에 열림"
-        else -> opensWhen(this)
+        heard != null -> "${opensWhen(this, timeParticle = false)}, ${koreanMoment(heard)}에 ${if (voice) "들음" else "읽음"}"
+        opened != null -> "${opensWhen(this, timeParticle = false)}, ${koreanMoment(opened)}에 열림"
+        else -> "${opensWhen(this)} 열려요"
     }
     return RecordMessage(
         ConditionIcon.of(this), quote(), detail, voice, if (voice) "다시 듣기" else "다시 보기", true,
@@ -207,7 +226,7 @@ private sealed interface Answer {
     data class Voice(val text: String, val audioPath: String? = null, val playable: Boolean = true) : Answer
 
     /** The partner's answer, hidden until both answered. */
-    data class Locked(val text: String = "내가 답하면 열려요") : Answer
+    data class Locked(val text: String = "둘 다 답하면 열려요") : Answer
 
     /** I have not answered yet. */
     data object Waiting : Answer
@@ -242,7 +261,7 @@ private fun QuestionState.toCurrentCard(partnerName: String): QuestionCard = Que
     if (mine == null) "내 답을 기다려요" else "${partnerName}님 답을 기다려요",
     mine == null, question.body, null,
     mine?.toAnswer() ?: Answer.Waiting,
-    Answer.Locked(if (mine == null) "내가 답하면 열려요" else "${partnerName}님이 답하면 열려요"),
+    Answer.Locked(if (mine == null) "둘 다 답하면 열려요" else "${partnerName}님이 답하면 열려요"),
 )
 
 /** A question both answered; the head shows the day the second answer came in. */

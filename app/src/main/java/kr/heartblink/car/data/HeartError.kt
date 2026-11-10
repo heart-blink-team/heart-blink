@@ -12,19 +12,19 @@ import java.io.IOException
 sealed class HeartError(val text: String) : Exception(text) {
     data object AlreadyConnected : HeartError("이미 연결된 차가 있어요")
     data object PlateNotFound : HeartError("그 번호로 가입한 차가 없어요")
-    data object OwnPlate : HeartError("내 차 번호예요. 상대 차 번호를 넣어 주세요")
+    data object OwnPlate : HeartError("내 차량 번호예요. 상대 차량 번호를 넣어 주세요")
     data object PartnerBusy : HeartError("상대가 이미 다른 차와 연결되어 있어요")
     data object NoRequest : HeartError("받은 연결 요청이 없어요")
     data object NotConnected : HeartError("아직 연결된 차가 없어요")
-    data object NoProfile : HeartError("먼저 이름과 차 번호를 등록해 주세요")
-    data object BadPlate : HeartError("차 번호를 12가3456처럼 넣어 주세요")
+    data object NoProfile : HeartError("먼저 이름과 차량 번호를 등록해 주세요")
+    data object BadPlate : HeartError("차량 번호를 12가3456처럼 넣어 주세요")
     data object PlateTaken : HeartError("이미 다른 차가 쓰고 있는 번호예요")
     data object BadName : HeartError("이름은 1자에서 20자까지 쓸 수 있어요")
     data object NicknameTooLong : HeartError("애칭은 5자까지 쓸 수 있어요")
     data object TextTooLong : HeartError("글은 200자까지 쓸 수 있어요")
     data object NotAllowed : HeartError("지금은 할 수 없는 일이에요")
     data object Network : HeartError("인터넷 연결을 확인해 주세요")
-    data object Offline : HeartError("서버가 아직 연결되지 않았어요")
+    data object Offline : HeartError("서버에 연결되지 않았어요")
     data class Unknown(val detail: String?) : HeartError("잠시 후 다시 시도해 주세요")
 
     companion object {

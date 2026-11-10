@@ -228,11 +228,18 @@ data class TimeBand(val start: LocalTime, val end: LocalTime) {
     /** "18:00~19:30" */
     val label: String get() = "${fmt(start)}~${fmt(end)}"
 
-    /** "오후 6시~7시 30분", as people say it; the end drops 오전/오후 when it is the same as the start's. */
+    /**
+     * "오후 6시~7시 30분", as people say it; the end drops 오전/오후 when it is the same as the start's.
+     * A range that passes midnight and ends in the same half of the day says so: "오전 11시~다음 날 오전 10시".
+     */
     val spoken: String get() {
         val (p1, t1) = korean(start)
         val (p2, t2) = korean(end)
-        return if (p1 == p2) "$p1 $t1~$t2" else "$p1 $t1~$p2 $t2"
+        return when {
+            p1 != p2 -> "$p1 $t1~$p2 $t2"
+            start > end -> "$p1 $t1~다음 날 $p2 $t2"
+            else -> "$p1 $t1~$t2"
+        }
     }
 
     companion object {

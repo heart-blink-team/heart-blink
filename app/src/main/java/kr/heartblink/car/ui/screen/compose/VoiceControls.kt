@@ -105,7 +105,7 @@ internal class VoiceDraft(private val onWords: (String) -> Unit) {
         } catch (e: Exception) {
             Log.w("VoiceDraft", "microphone failed", e)
             s?.cancel()
-            error = "마이크를 열지 못했어요. 잠시 뒤에 다시 눌러 주세요"
+            error = "마이크를 켜지 못했어요. 잠시 뒤에 다시 눌러 주세요"
             return
         }
         speech = s
