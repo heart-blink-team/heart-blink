@@ -15,7 +15,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
@@ -49,6 +52,9 @@ object DriveTalk {
     /** Shorter waits for trying the flow on the emulator (`--ez talk_fast true`). */
     var fast = false
 
+    /** Debug builds only: every "지금 들을까요?" counts as a yes, for the emulator with no one to answer it. */
+    var autoYes = false
+
     private val gapMs get() = if (fast) 15_000L else 3 * 60_000L
     private val maxWaitMs get() = if (fast) 60_000L else 5 * 60_000L
     private val questionAfterMs get() = if (fast) 20_000L else 3 * 60_000L
@@ -63,6 +69,8 @@ object DriveTalk {
 
     private sealed class Talk(val rank: Int) {
         class Arrived(val message: Message) : Talk(1)
+        /** A message whose playing was cut off (parked, or the door opened) on an earlier ride. */
+        class Replay(val message: Message) : Talk(1)
         class PartnerAnswer(val q: QuestionState) : Talk(2)
         data object Question : Talk(3)
         data object Together : Talk(4)
@@ -90,11 +98,14 @@ object DriveTalk {
             }
             // a message that opened: told while driving, announced when parked and the app is not on screen
             launch {
-                var seen = emptySet<String>()
-                MessageOpener.waiting.collect { list ->
-                    val fresh = list.filter { it.id !in seen }
-                    seen = seen + list.map { it.id }
+                // what already waited when the app started is not news; it shows from the envelope
+                var seen: Set<String>? = null
+                MessageOpener.waiting.drop(1).collect { list ->
+                    val known = seen ?: list.map { it.id }.toSet().also { seen = it }
+                    val fresh = list.filter { it.id !in known }
+                    seen = known + list.map { it.id }
                     if (fresh.isEmpty()) return@collect
+                    Log.i(TAG, "opened ${fresh.size}, driving ${CarSignals.driving.value}, app on screen $appVisible")
                     if (CarSignals.driving.value == true) {
                         fresh.forEach { enqueue(Talk.Arrived(it), "m:${it.id}") }
                     } else if (!appVisible) {
@@ -106,7 +117,7 @@ object DriveTalk {
             // my partner answered after me: their answer is open now
             launch {
                 var lastNo: Int? = null
-                snapshotFlow { Session.revealed }.collect { q ->
+                Session.revealedFlow.collect { q ->
                     if (q != null && q.question.no != lastNo && CarSignals.driving.value == true) {
                         lastNo = q.question.no
                         enqueue(Talk.PartnerAnswer(q), "a:${q.question.no}")
@@ -114,7 +125,7 @@ object DriveTalk {
                 }
             }
             launch {
-                snapshotFlow { Session.partnerDriving }.collect { both ->
+                Session.partnerDrivingFlow.collect { both ->
                     if (both && CarSignals.driving.value == true) enqueue(Talk.Together, "together")
                 }
             }
@@ -133,6 +144,9 @@ object DriveTalk {
                 if (Session.question?.mine == null) enqueue(Talk.Question, "question")
             }
             if (Session.partnerDriving) enqueue(Talk.Together, "together")
+            // what was cut off on an earlier ride and has not been listened to since
+            val cut = cutOff()
+            MessageOpener.waiting.value.filter { it.id in cut }.forEach { enqueue(Talk.Replay(it), "r:${it.id}") }
             run()
         }
         updateStatus()
@@ -163,6 +177,7 @@ object DriveTalk {
 
     private fun keyOf(t: Talk) = when (t) {
         is Talk.Arrived -> "m:${t.message.id}"
+        is Talk.Replay -> "r:${t.message.id}"
         is Talk.PartnerAnswer -> "a:${t.q.question.no}"
         Talk.Question -> "question"
         Talk.Together -> "together"
@@ -235,25 +250,70 @@ object DriveTalk {
                 }
                 playMessage(t.message)
             }
+            is Talk.Replay -> {
+                if (!ask("아까 끝까지 못 들은 ${name}님 메시지가 있어요. 지금 들을까요?")) {
+                    say("주차하면 보여 드릴게요")
+                    return
+                }
+                playMessage(t.message)
+            }
             is Talk.PartnerAnswer -> {
-                val answer = t.q.partner ?: return
                 if (!ask("${name}님도 오늘의 질문에 답했어요. 지금 들을까요?")) {
                     say("주차하면 오늘의 질문에서 볼 수 있어요")
                     return
                 }
-                val path = answer.audioPath
-                if (path != null) playRemote(path) else say(answer.body)
+                playAnswer(t.q)
             }
             Talk.Question -> askQuestion()
-            Talk.Together -> say("지금 ${name}님도 운전 중이에요")
+            Talk.Together -> say("지금 ${name}님도 운전 중이에요. 각자의 길에서 함께 달리고 있어요")
         }
     }
 
+    private suspend fun playAnswer(q: QuestionState) {
+        val answer = q.partner ?: return
+        val path = answer.audioPath
+        if (path != null) playRemote(path) else say(answer.body)
+    }
+
+    /**
+     * Plays a message to the end and marks it heard. When the driver's door opens or the car parks before the
+     * end, it stays unheard and is offered again on the next ride.
+     */
     private suspend fun playMessage(m: Message) {
-        val path = m.audioPath
-        if (path != null) playRemote(path) else say(m.body)
+        var finished = false
+        try {
+            coroutineScope {
+                val play = launch {
+                    val path = m.audioPath
+                    if (path != null) playRemote(path) else say(m.body)
+                }
+                val door = launch {
+                    CarSignals.driverDoorOpen.first { it == true }
+                    Log.i(TAG, "door opened while playing ${m.id}")
+                    Speaker.stop()
+                    play.cancel()
+                }
+                play.join()
+                finished = !play.isCancelled
+                door.cancel()
+            }
+        } finally {
+            if (finished) cutOff(m.id, false) else cutOff(m.id, true)
+        }
+        if (!finished) return
         Session.repository?.markMessage(m.id, opened = true, heard = true)
         MessageOpener.refreshWaiting()
+    }
+
+    private fun prefs() = app.getSharedPreferences("drivetalk", Context.MODE_PRIVATE)
+
+    /** Messages whose playing was cut off and not finished since. */
+    private fun cutOff(): Set<String> = prefs().getStringSet("cut_off", emptySet()).orEmpty()
+
+    private fun cutOff(id: String, cut: Boolean) {
+        val now = if (cut) cutOff() + id else cutOff() - id
+        prefs().edit().putStringSet("cut_off", now).apply()
+        if (cut) Log.i(TAG, "cut off $id, again on the next ride")
     }
 
     private suspend fun playRemote(path: String) {
@@ -274,7 +334,12 @@ object DriveTalk {
     private suspend fun askQuestion() {
         val q = Session.question ?: return
         if (q.mine != null) return
-        if (!ask("오늘의 질문 들을까요?")) return
+        val intro = when (daysWaiting()) {
+            0 -> "오늘의 질문 들을까요?"
+            1 -> "어제 답하지 못한 질문이 있어요. 지금 들을까요?"
+            else -> "지난번에 답하지 못한 질문이 있어요. 지금 들을까요?"
+        }
+        if (!ask(intro)) return
         say("${q.question.no}번째 질문이에요. ${q.question.body} 삐 소리 뒤에 말해 주세요")
         repeat(2) { attempt ->
             val heard = Listener.answer() ?: run {
@@ -290,20 +355,38 @@ object DriveTalk {
                 say("다시 말해 주세요")
                 return@repeat
             }
-            Session.answer(text, heard.second)
-                .onSuccess {
-                    answeredThisDrive = true
-                    say(if (it.bothAnswered) "남겼어요. ${partner()}님 답도 열렸어요" else "남겼어요")
-                    if (it.bothAnswered) enqueue(Talk.PartnerAnswer(it), "a:${it.question.no}")
-                }
-                .onFailure { say("지금은 남기지 못했어요. 주차하고 다시 해 주세요") }
+            val st = Session.answer(text, heard.second).getOrNull()
+            if (st == null) {
+                say("지금은 남기지 못했어요. 주차하고 다시 해 주세요")
+                return
+            }
+            answeredThisDrive = true
+            if (!st.bothAnswered) {
+                say("남겼어요")
+                return
+            }
+            // I was the second to answer: my partner's answer is open, offered right away rather than later
+            doneThisDrive += "a:${st.question.no}"
+            if (ask("남겼어요. ${partner()}님 답도 열렸어요. 지금 들을까요?")) playAnswer(st)
+            else say("주차하면 오늘의 질문에서 볼 수 있어요")
             return
         }
+    }
+
+    /** How many days the current question has waited: 0 when it opened today (a day starts at 4 a.m.). */
+    private fun daysWaiting(): Int {
+        val opened = Session.couple?.questionOpenedAt ?: return 0
+        val zone = java.time.ZoneId.of("Asia/Seoul")
+        fun day(i: java.time.Instant) = i.atZone(zone).minusHours(4).toLocalDate()
+        val from = day(java.time.Instant.ofEpochMilli(opened.toEpochMilliseconds()))
+        val today = day(java.time.Instant.now())
+        return java.time.temporal.ChronoUnit.DAYS.between(from, today).toInt().coerceAtLeast(0)
     }
 
     /** Asks and listens for a short answer; true only for a clear yes. */
     private suspend fun ask(question: String): Boolean {
         say(question)
+        if (autoYes) return true.also { Log.i(TAG, "answer (debug) yes") }
         val w = Listener.words(ANSWER_MS)
         Log.i(TAG, "answer \"$w\"")
         if (listOf("나중", "주차", "패스", "아니", "괜찮").any { it in w }) return false

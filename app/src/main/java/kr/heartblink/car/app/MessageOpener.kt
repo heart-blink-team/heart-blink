@@ -73,9 +73,10 @@ object MessageOpener {
     /** Reloads the opened but unheard messages, for example after one was listened to. */
     suspend fun refreshWaiting() {
         val r = repo ?: return
-        _waiting.value = r.receivedMessages()
-            .filter { it.openedAt != null && it.heardAt == null }
-            .sortedBy { it.openedAt }
+        // a failed read keeps the list as it was
+        val all = r.receivedMessagesOrNull() ?: return
+        _waiting.value = all.filter { it.openedAt != null && it.heardAt == null }.sortedBy { it.openedAt }
+        Log.i(TAG, "waiting ${_waiting.value.size}")
     }
 
     // ------------------------------------------------------------ car events

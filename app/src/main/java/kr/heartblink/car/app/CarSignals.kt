@@ -1,7 +1,11 @@
 package kr.heartblink.car.app
 
 import ai.pleos.playground.vehicle.Vehicle
+import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
+import ai.pleos.playground.vehicle.constant.area.DoorValue
+import ai.pleos.playground.vehicle.listener.DistanceDrivenListener
+import ai.pleos.playground.vehicle.listener.DoorPositionListener
 import ai.pleos.playground.vehicle.api.model.area.WindowArea
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.WindowValue
@@ -95,6 +99,14 @@ object CarSignals {
     @Volatile var brakePressed: Boolean? = null; private set
     @Volatile var cruiseOn: Boolean? = null; private set
 
+    private val _odometerKm = MutableStateFlow<Float?>(null)
+    /** The car's odometer in km; null until the car has answered (or when it does not give one). */
+    val odometerKm: StateFlow<Float?> = _odometerKm
+
+    private val _driverDoorOpen = MutableStateFlow<Boolean?>(null)
+    /** The driver's door is open. */
+    val driverDoorOpen: StateFlow<Boolean?> = _driverDoorOpen
+
     private val _unsupported = MutableStateFlow<Set<String>>(emptySet())
     /** Car functions this car does not have (ConditionValue names): 06 hides them as conditions. */
     val unsupported: StateFlow<Set<String>> = _unsupported
@@ -106,6 +118,7 @@ object CarSignals {
 
     private val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
     private val driverWindow = WindowArea(WindowValue.ROW_1_LEFT)
+    private val driverDoor = DoorArea(DoorValue.ROW_1_LEFT)
     private val windshield = WindowArea(WindowValue.FRONT_WINDSHIELD)
 
     fun start(context: Context) {
@@ -281,6 +294,26 @@ object CarSignals {
                 }
                 override fun onFailed(e: Exception) = Log.w(TAG, "cruise failed: ${e.message}").let { }
             })
+        }
+        // 함께 달린 거리: the odometer, added up while both of us drive (TogetherDistance)
+        tryRegister("odometer") {
+            val odometer = v.getOdometer()
+            odometer.registerDistanceDriven(object : DistanceDrivenListener {
+                override fun onDistanceDrivenUpdated(km: Float?) { if (km != null) set(_odometerKm, km, "odometer") }
+                override fun onFailed(e: Exception) = Log.w(TAG, "odometer failed: ${e.message}").let { }
+            })
+            odometer.getCurrentDistanceDriven({ km -> if (km != null) set(_odometerKm, km, "odometer") }, { e -> Log.w(TAG, "odometer read failed: ${e.message}") })
+        }
+        // a message cut off by the driver's door opening is played again on the next ride (DriveTalk)
+        tryRegister("driver door") {
+            val door = v.getDoor()
+            door.checkDoorPositionCapabilities({ bounds ->
+                val closed = (bounds[driverDoor] ?: bounds.values.firstOrNull())?.minValue ?: 0
+                door.registerDoorPosition(driverDoor, object : DoorPositionListener {
+                    override fun onPositionUpdated(position: Int?) { if (position != null) set(_driverDoorOpen, position > closed, "driver door open") }
+                    override fun onFailed(e: Exception) = Log.w(TAG, "door listener failed: ${e.message}").let { }
+                })
+            }, { e -> Log.w(TAG, "door not available: ${e.message}") })
         }
     }
 
