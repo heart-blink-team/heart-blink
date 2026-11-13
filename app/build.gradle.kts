@@ -89,6 +89,8 @@ dependencies {
     implementation("ai.pleos.playground:TextToSpeech:3.3.1")
     // Pleos NaviHelper: arrival at the destination, the car's place, the next turn, bookmarks
     implementation("ai.pleos.playground:NaviHelper:3.0.5")
+    // Pleos FusedLocation: the car's position from GPS and the car's own sensors
+    implementation("ai.pleos.playground:FusedLocation:1.1.3")
     // MapLibre with OpenFreeMap tiles: the pin map for place messages (no key)
     implementation("org.maplibre.gl:android-sdk:11.13.5")
 

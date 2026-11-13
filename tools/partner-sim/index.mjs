@@ -22,7 +22,7 @@ const HELP = `하트깜빡이 상대 차 시뮬레이터
   answer <글> [--audio 파일.m4a]          지금 질문에 답하기
   send <조건묶음> <조건값> <글> [옵션]    메시지 남기기
         옵션: --audio 파일.m4a  --opens-from 2026-11-07T09:00:00+09:00
-              --place-name 이름 --lat 37.5 --lng 127.0 --radius 200 (조건묶음 place일 때)
+              --place-name 이름 --lat 37.5 --lng 127.0 --radius 200 (place일 때, arrival parked일 때는 주차할 곳, 반경 기본 300)
         조건묶음/조건값:
           vehicle      wiper, headlight, seat_heater, aircon, window
           time         dawn, morning, noon, afternoon, evening, night, custom:HHMM-HHMM (직접 정하기)
@@ -266,12 +266,15 @@ const commands = {
       condition_value: value,
       body: textParts.join(' '),
     };
-    if (group === 'place') {
-      if (options.lat === undefined || options.lng === undefined) throw new UserError('place 메시지는 --lat, --lng 가 필요해요');
+    // place: opens near the spot. arrival/parked: opens when the car parks within 300 m of the spot the sender
+    // picked (the partner's home or office), as the app sends it
+    const parked = group === 'arrival' && value === 'parked';
+    if (group === 'place' || parked) {
+      if (options.lat === undefined || options.lng === undefined) throw new UserError(`${parked ? 'arrival parked' : 'place'} 메시지는 --lat, --lng 가 필요해요`);
       row.place_name = options['place-name'] ?? null;
       row.place_lat = Number(options.lat);
       row.place_lng = Number(options.lng);
-      row.place_radius_m = Number(options.radius ?? 200);
+      row.place_radius_m = Number(options.radius ?? (parked ? 300 : 200));
     }
     if (options['opens-from']) row.opens_from = new Date(options['opens-from']).toISOString();
     if (options.audio) {
@@ -348,7 +351,7 @@ const commands = {
       .eq('receiver', me).is('opened_at', null).order('created_at', { ascending: true }));
     console.log(`\n안 읽은 메시지: ${unread.length}개`);
     for (const m of unread) {
-      const place = m.condition_group === 'place' ? ` @${m.place_name ?? ''}(${m.place_lat}, ${m.place_lng})` : '';
+      const place = m.place_lat != null ? ` @${m.place_name ?? ''}(${m.place_lat}, ${m.place_lng})` : '';
       console.log(`  ${m.id}  [${m.condition_group}/${m.condition_value}${place}] ${m.body}${m.audio_path ? ' + 음성' : ''}  (열림 가능: ${m.opens_from})`);
     }
     const sent = must(await supabase.from('messages').select('*')

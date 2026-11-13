@@ -100,7 +100,8 @@ private object AnswerDraft {
 }
 
 /**
- * 05 오늘의 질문. Questions go in order, not by date: the next one opens only after both answered.
+ * 05 오늘의 질문. One question a day, in order: the next one opens the day after both answered (a day starts
+ * at 4 a.m.). One left unanswered keeps waiting; finishing it on a later day opens the next one at once.
  * When both have answered, the partner's card turns over on the Y axis in 0.6 s to show the answer.
  */
 @Composable
@@ -111,7 +112,7 @@ fun QuestionScreen(nav: Nav) {
 /** The Figma state: both answered, 서연's card turning over. */
 @Composable
 private fun DemoQuestion(nav: Nav) {
-    QuestionLayout(nav, "후니", "여니", "우리의 일기장에 저장했어요. 다음 질문이 열렸어요") {
+    QuestionLayout(nav, "후니", "여니", "우리의 일기장에 저장했어요. 다음 질문은 내일 열려요") {
         QuestionCard(128, "이번 주말에\n나랑 꼭\n하고 싶은 것\n하나는?", "둘 다 답해서\n서로의 답이 열렸어요", fixedBreaks = true)
         AnswerCard("나의 답", "캠핑\n가고 싶어!", "0:04", "from. 후니", MyTape, MyCardAt)
         Flipping { AnswerCard("서연의 답", "캠핑 가서\n같이 별\n보고 싶어!", "0:05", "from. 여니", PartnerTape, PartnerCardAt.then(it)) }
@@ -129,7 +130,13 @@ private fun LiveQuestion(nav: Nav) {
     val (action, run) = rememberAction()
     var editing by remember { mutableStateOf(false) }
     var shift by remember { mutableStateOf(false) }
-    val footer = if (revealed != null) "우리의 일기장에 저장했어요. 다음 질문이 열렸어요" else null
+    val now = Session.question
+    val footer = when {
+        // finished late (a question from an earlier day): the next one opened at once
+        revealed != null && now != null && now.question.no > revealed.question.no -> "우리의 일기장에 저장했어요. 다음 질문이 열렸어요"
+        shown?.bothAnswered == true -> "우리의 일기장에 저장했어요. 다음 질문은 내일 열려요"
+        else -> null
+    }
 
     Box(Modifier.fillMaxSize()) {
         QuestionLayout(nav, v.myNickname, v.partnerNickname, footer) {

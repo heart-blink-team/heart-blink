@@ -150,6 +150,16 @@ internal enum class ConditionGroup(val screen: String, val head: String, val dat
     }
 }
 
+/**
+ * The options 06 offers. A message opens in the partner's car, so the car functions it reported it cannot
+ * sense are left out (all of them stay when it reported none, or nothing would be left).
+ */
+internal fun ConditionGroup.shownOptions(): List<ConditionOption> {
+    if (this != ConditionGroup.Vehicle || !Session.live) return options
+    val missing = Session.partner?.unsupported.orEmpty()
+    return options.filter { it.value !in missing }.ifEmpty { options }
+}
+
 /** Label of the 07 option that picks a start and an end time. */
 internal const val CustomTime = "직접"
 
@@ -281,11 +291,18 @@ internal fun MessageScreen(nav: Nav, group: ConditionGroup) {
                         if (draft.isRecording) draft.stop()
                         playback.stop()
                         val value = MessageDraft.value(group)
-                        val place = if (group == ConditionGroup.Place) PlaceDraft.chosen else null
+                        val parking = group == ConditionGroup.Arrival && value == ConditionValue.PARKED
+                        val place = when {
+                            group == ConditionGroup.Place -> PlaceDraft.chosen
+                            parking -> PlaceDraft.parkAt
+                            else -> null
+                        }
                         if (MessageDraft.text(group).isBlank() && draft.recording == null) {
                             action.error = "녹음하거나 글을 써 주세요"
                         } else if (group == ConditionGroup.Place && place == null) {
                             action.error = "메시지가 열릴 장소를 골라 주세요"
+                        } else if (parking && place == null) {
+                            action.error = "주차할 곳을 지도에서 골라 주세요"
                         } else {
                             run({
                                 draft.awaitWords()
@@ -353,7 +370,8 @@ internal fun MessageSentScreen(nav: Nav) {
             if (option == CustomTime) "$quote ${MessageDraft.customBand.spoken} 사이에 열려요" else "$quote ${option}에 열려요"
         ConditionGroup.FirstStart -> "$quote ${partner}님이 그날 처음 시동을 걸면 열려요"
         ConditionGroup.Arrival ->
-            if (option == "목적지 도착") "$quote ${partner}님이 목적지에 도착하면 열려요" else "$quote ${partner}님이 주차하면 열려요"
+            if (option == "목적지 도착") "$quote ${partner}님이 목적지에 도착하면 열려요"
+            else "$quote ${partner}님이 ${parkName(PlaceDraft.parkAt)}에 주차하면 열려요"
         ConditionGroup.Place -> "$quote ${partner}님이 ${PlaceDraft.place?.name ?: "고른 장소"} 근처에 가면 열려요"
     }
     val playback = rememberVoicePlayback()
@@ -574,6 +592,11 @@ private fun FitLine(text: String, style: TextStyle, color: Color, minScale: Floa
 private fun DetailCard(group: ConditionGroup, animate: Boolean, onOption: ((String) -> Unit)?, modifier: Modifier) {
     val c = Heart.colors
     val shape = RoundedCornerShape(28.dp)
+    val shown = group.shownOptions()
+    // a function the partner's car turned out not to have cannot stay picked
+    LaunchedEffect(shown) {
+        if (shown.none { it.label == MessageDraft.option[group] }) MessageDraft.option[group] = shown.first().label
+    }
     val current = MessageDraft.option[group]
     Column(
         modifier
@@ -599,12 +622,24 @@ private fun DetailCard(group: ConditionGroup, animate: Boolean, onOption: ((Stri
             )
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                group.options.forEach { opt ->
-                    // 07 writes each band's hours under its name
-                    val hours = if (group != ConditionGroup.Time) null
-                        else if (opt.label == CustomTime) "고르기"
-                        else TimeBand.of(opt.value)?.let { "${it.start.hour}~${it.end.hour}시" }
-                    OptionTile(opt, opt.label == current, animate, onOption?.let { { it(opt.label) } }, Modifier.weight(1f), hours)
+                shown.forEach { opt ->
+                    // 07 writes each band's hours under its name; 주차 writes the place picked on the map
+                    val parking = opt.value == ConditionValue.PARKED
+                    val sub = when {
+                        group == ConditionGroup.Time && opt.label == CustomTime -> "고르기"
+                        group == ConditionGroup.Time -> TimeBand.of(opt.value)?.let { "${it.start.hour}~${it.end.hour}시" }
+                        parking -> PlaceDraft.parkAt?.let(::parkName) ?: "지도에서 고르기"
+                        else -> null
+                    }
+                    // 주차 opens the map at once when no place is picked yet, and again when tapped once more
+                    val click = onOption?.let {
+                        {
+                            val again = opt.label == current
+                            it(opt.label)
+                            if (parking && (again || PlaceDraft.parkAt == null)) PlaceDraft.onMap()
+                        }
+                    }
+                    OptionTile(opt, opt.label == current, animate, click, Modifier.weight(1f), sub)
                 }
             }
             if (group == ConditionGroup.Time && current == CustomTime) CustomTimeRange(editable = onOption != null)

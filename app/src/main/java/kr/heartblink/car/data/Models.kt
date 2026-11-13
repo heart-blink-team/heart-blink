@@ -14,6 +14,8 @@ data class Profile(
     val name: String,
     val plate: String,
     @SerialName("created_at") val createdAt: Instant? = null,
+    /** Message conditions this car cannot sense ([ConditionValue] names); the partner's 06 hides them. */
+    val unsupported: List<String> = emptyList(),
 )
 
 @Serializable

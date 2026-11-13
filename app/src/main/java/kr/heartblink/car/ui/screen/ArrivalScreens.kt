@@ -624,7 +624,10 @@ private fun look(m: Message): Look = when (m.group) {
     }
     DataGroup.FirstStart -> Look("오늘 첫 시동을 거는 순간 열렸어요", StartGlyph, "오늘 첫 시동을 걸었어요", "그날 첫 시동을 걸 때", scene = FirstStartScene)
     DataGroup.Arrival ->
-        if (m.conditionValue == ConditionValue.PARKED) Look("주차하는 순간 열렸어요", FlagGlyph, "주차했어요", "주차했을 때", scene = mapScene("주차"))
+        if (m.conditionValue == ConditionValue.PARKED) {
+            val at = m.parkedAt()
+            Look("${at}주차하는 순간 열렸어요", FlagGlyph, "${at}주차했어요", "${at}주차했을 때", scene = mapScene(m.place?.let { parkName(it) } ?: "주차"))
+        }
         else Look(
             "목적지에 도착하는 순간 열렸어요", FlagGlyph, "목적지에 도착했어요", "목적지에 도착할 때",
             scene = mapScene(kr.heartblink.car.app.NaviWatch.arrivedAt?.takeIf { it.isNotBlank() } ?: "도착"),
