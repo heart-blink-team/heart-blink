@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -183,7 +184,7 @@ private fun ShopWindow(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(start = 84.dp, end = 84.dp, top = 196.dp, bottom = 186.dp),
+                .padding(start = 84.dp, end = 84.dp, top = 196.dp, bottom = 150.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Row(
@@ -278,33 +279,33 @@ private fun Preview(height: Dp, picked: Boolean, content: @Composable BoxScope.(
 }
 
 /** A product on the page: only the thumbnail is filled, the name and price sit on the page under it. */
-private fun Modifier.cardFrame(width: Dp, onTap: () -> Unit) = size(width, 279.dp).tap(onTap)
+private fun Modifier.cardFrame(width: Dp, height: Dp, onTap: () -> Unit) = size(width, height).tap(onTap)
 
-/** 21 card, 365 x 279: preview, name, price stacked in the middle. */
+/** 21 card, 365 x 302: a 176 px preview, name, price stacked in the middle. */
 @Composable
 private fun SmallCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
     val c = Heart.colors
     Column(
-        Modifier.cardFrame(365.dp, onTap).padding(bottom = 14.dp),
+        Modifier.cardFrame(365.dp, 302.dp, onTap).padding(bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Preview(130.dp, selected, item.thumb)
+        Preview(176.dp, selected, item.thumb)
         Spacer(Modifier.weight(1f))
         Text(item.name, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
         PriceText(item.price)
     }
 }
 
-/** 22 ~ 24 card, 492 x 279: preview on top, name and price on one row at the bottom. */
+/** 22 ~ 24 card, 492 x 301: a 220 px preview on top, name and price on one row at the bottom. */
 @Composable
 private fun WideCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
     val c = Heart.colors
     Column(
-        Modifier.cardFrame(492.dp, onTap).padding(bottom = 16.dp),
+        Modifier.cardFrame(492.dp, 301.dp, onTap).padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Preview(150.dp, selected, item.thumb)
+        Preview(220.dp, selected, item.thumb)
         Spacer(Modifier.weight(1f))
         Row(
             Modifier.fillMaxWidth(),
@@ -317,23 +318,24 @@ private fun WideCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
     }
 }
 
-/** 240 x 150 effect thumbnail, centered and lifted 10 px in the 130 px preview. */
+/** 240 x 150 effect thumbnail at 1.1x (264 x 165), centered in the 176 px preview. */
 @Composable
 private fun ThemeThumb(name: String) {
-    FigmaSvg(name, Modifier.pin(240.dp, 150.dp, y = (-10).dp))
+    FigmaSvg(name, Modifier.pin(264.dp, 165.dp, y = 5.5.dp))
 }
 
-/** 258 x 146.2 thumbnail centered in the 150 px preview. */
+/** 258 x 146.2 thumbnail at 1.3x (335.4 x 190.1), centered in the 220 px preview. */
 @Composable
 private fun WideThumb(name: String) {
-    FigmaSvg(name, Modifier.pin(258.dp, 146.2.dp, y = 1.9.dp))
+    FigmaSvg(name, Modifier.pin(335.4.dp, 190.06.dp, y = 14.97.dp))
 }
 
 /** 하트 차오름 preview: a heart outline filled with pink liquid and bubbles, with the "새 테마" tag. */
 @Composable
 private fun LiquidHeartThumb() {
     val c = Heart.colors
-    Box(Modifier.pin(118.dp, 118.dp, y = 6.dp)) {
+    // 118 px heart at 1.1x, centered in the 176 px preview
+    Box(Modifier.pin(118.dp, 118.dp, y = 29.dp).scale(1.1f)) {
         FigmaSvg("s21_liquid_back", Modifier.pin(85.4355.dp, 51.75.dp, y = 38.59.dp, x = 16.27.dp))
         FigmaSvg("s21_liquid_front", Modifier.pin(84.3896.dp, 46.8965.dp, y = 43.44.dp, x = 16.98.dp))
         FigmaSvg("s21_bubbles", Modifier.fillMaxSize())
@@ -348,10 +350,10 @@ private fun LiquidHeartThumb() {
     ) { Text("새 테마", style = HeartType.Label, color = c.textOnAccent, maxLines = 1) }
 }
 
-/** 폴라로이드 preview: two tilted photos (-6 and 8 degrees). */
+/** 폴라로이드 preview: two tilted photos (-6 and 8 degrees), at 1.3x like the other wide thumbnails. */
 @Composable
 private fun PolaroidThumb() {
-    Box(Modifier.pin(258.dp, 146.2.dp, y = 1.9.dp).clipToBounds()) {
+    Box(Modifier.pin(258.dp, 146.2.dp, y = 36.9.dp).scale(1.3f).clipToBounds()) {
         Box(Modifier.pin(107.67.dp, 122.97.dp, y = 14.2.dp, x = 40.76.dp), contentAlignment = Alignment.Center) {
             FigmaSvg("s24_polaroid1", Modifier.size(98.9.dp, 116.1.dp).rotate(-6f))
         }
