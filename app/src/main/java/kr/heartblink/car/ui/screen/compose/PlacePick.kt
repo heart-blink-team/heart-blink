@@ -177,7 +177,7 @@ internal fun PlaceMapScreen(nav: Nav) {
     HeartWindow(Tab.Message, nav) {
         // the same edges and title as 06, the map as the one card on the page
         Column(Modifier.padding(start = 88.dp, end = 88.dp, top = 200.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            val title = if (park) "${Session.view.partnerName.ifBlank { "연인" }}님이 주차할 곳(집, 회사 등)을 골라요"
+            val title = if (park) "${Session.view.partnerName.ifBlank { "연인" }}님이 주차하면 메시지가 열릴 곳을 골라요"
                 else "지도나 이름을 눌러 메시지가 열릴 곳을 골라요"
             Text(title, style = HeartType.HeartTitle, color = c.textPrimary, maxLines = 1)
             Box(Modifier.fillMaxWidth().height(640.dp).clip(RoundedCornerShape(28.dp)).border(2.dp, c.line, RoundedCornerShape(28.dp))) {
@@ -199,7 +199,7 @@ internal fun PlaceMapScreen(nav: Nav) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (park) {
-                    Text("이 곳 ${ParkRadiusM}m 안에서 P로 바꾸면 열려요", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
+                    Text("이곳 ${ParkRadiusM}m 안에서 P로 바꾸면 열려요", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
                 } else {
                     Text("이만큼 가까이 오면", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
                     Radii.forEach { (m, label) -> Chip(label, PlaceDraft.radiusM == m) { PlaceDraft.radiusM = m } }

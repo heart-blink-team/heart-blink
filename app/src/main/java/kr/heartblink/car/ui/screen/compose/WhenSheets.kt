@@ -105,7 +105,7 @@ private fun OpensFromSheet(close: () -> Unit) {
     var time by remember { mutableStateOf(start?.let { LocalTime(it.hour, it.minute / 10 * 10) } ?: LocalTime(0, 0)) }
     val picked = today.plus(day, DateTimeUnit.DAY).atTime(time).toInstant(Korea)
     val fromNow = picked <= Clock.System.now()
-    BottomSheet("언제부터 열릴까요?", close) {
+    BottomSheet("언제부터 활성화할까요?", close) {
         Row(
             Modifier.align(Alignment.CenterHorizontally),
             verticalAlignment = Alignment.Bottom,
@@ -115,7 +115,7 @@ private fun OpensFromSheet(close: () -> Unit) {
             Titled("시각") { ClockWheels(time) { time = it } }
         }
         Text(
-            if (fromNow) "지금부터 열릴 수 있어요" else "${koreanStart(picked)} 열릴 수 있어요",
+            if (fromNow) "지금부터 활성화돼요" else "${koreanStart(picked)} 활성화돼요",
             style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )

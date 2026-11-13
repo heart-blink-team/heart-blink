@@ -72,6 +72,11 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlinx.datetime.Instant
 import androidx.compose.ui.text.style.TextDecoration
 import kotlinx.datetime.LocalTime
@@ -310,7 +315,7 @@ internal fun MessageScreen(nav: Nav, group: ConditionGroup) {
                         } else if (group == ConditionGroup.Place && place == null) {
                             action.error = "메시지가 열릴 장소를 골라 주세요"
                         } else if (parking && place == null) {
-                            action.error = "주차할 곳을 지도에서 골라 주세요"
+                            action.error = "주차하면 메시지가 열릴 곳을 지도에서 골라 주세요"
                         } else {
                             run({
                                 draft.awaitWords()
@@ -562,39 +567,79 @@ private fun OptionTile(opt: ConditionOption, selected: Boolean, animate: Boolean
     }
 }
 
-/** 열리기 시작하는 시각: from now, or from a day (and time) picked on the wheels. */
+/**
+ * 활성화될 시간: from when the message may open. While composing it is a button that reads
+ * "활성화될 시간 고르기" until a day (and time) is picked on the wheels; after sending, one line.
+ */
 @Composable
 private fun StartTime(editable: Boolean, modifier: Modifier) {
     val c = Heart.colors
-    val from = MessageDraft.opensFrom?.let(::koreanStart) ?: if (Session.live) "지금부터" else "11월 7일 (토) 오전 7:00부터"
+    val picked = MessageDraft.opensFrom?.let(::koreanStart) ?: if (Session.live) null else "11월 7일 (토) 오전 7:00부터"
+    val label = when {
+        !editable -> "${picked ?: "지금부터"} 열려요"
+        else -> picked ?: "활성화될 시간 고르기"
+    }
     WhenLine(editable, { MessageDraft.sheet = WhenSheet.OpensFrom }, modifier) {
-        Text("$from 열려요", style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
+        Box(Modifier.weight(1f, fill = false)) { FitLine(label, HeartType.BodyStrong, c.textPrimary) }
     }
 }
 
-/** 직접 정하기 (07): from which day, and the range, on the start time's line. */
+/** 직접 정하기 (07): from which day, and the range, in the start time's place. */
 @Composable
 private fun CustomTimeRange(editable: Boolean, modifier: Modifier) {
     val c = Heart.colors
     val from = MessageDraft.opensFrom?.let(::koreanStart) ?: "오늘부터"
+    val range = "$from ${MessageDraft.customBand.spoken} 사이"
     WhenLine(editable, { MessageDraft.sheet = WhenSheet.TimeRange }, modifier) {
-        Box(Modifier.weight(1f)) { FitLine("$from ${MessageDraft.customBand.spoken} 사이에 열려요", HeartType.BodyStrong, c.textPrimary) }
+        Box(Modifier.weight(1f, fill = false)) { FitLine(if (editable) range else "${range}에 열려요", HeartType.BodyStrong, c.textPrimary) }
     }
 }
 
-/** The clock and one line, no box around them; a tap opens the wheels. */
+/**
+ * The clock and one line. While composing it is a flat secondary button (white, 2 px hairline, r28)
+ * with a chevron, so it reads as something to tap; a tap opens the wheels.
+ */
 @Composable
 private fun WhenLine(editable: Boolean, onClick: () -> Unit, modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+    val c = Heart.colors
+    val shape = RoundedCornerShape(28.dp)
     Row(
-        modifier
-            .fillMaxWidth()
-            .tap(if (editable) onClick else null)
-            .padding(vertical = 18.dp),
+        modifier.then(
+            if (editable) {
+                Modifier
+                    .padding(top = 10.dp)
+                    .height(76.dp)
+                    .clip(shape)
+                    .background(c.bgCard)
+                    .border(2.dp, c.line, shape)
+                    .tap(onClick)
+                    .padding(start = 22.dp, end = 26.dp)
+            } else {
+                Modifier.padding(vertical = 18.dp)
+            },
+        ),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Layered(Modifier.size(36.dp)) { svg("s06_icon_time_off", Inset.pct(12.5f), Inset.pct(5f)) }
         content()
+        if (editable) Chevron()
+    }
+}
+
+/** A small down chevron in the line style of the icons: the button opens a sheet below. */
+@Composable
+private fun Chevron() {
+    val color = Heart.colors.textSecondary
+    Canvas(Modifier.size(24.dp)) {
+        val w = size.width
+        val h = size.height
+        val p = Path().apply {
+            moveTo(w * 0.2f, h * 0.36f)
+            lineTo(w * 0.5f, h * 0.66f)
+            lineTo(w * 0.8f, h * 0.36f)
+        }
+        drawPath(p, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 
