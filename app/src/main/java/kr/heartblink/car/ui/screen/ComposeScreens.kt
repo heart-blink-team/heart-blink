@@ -112,7 +112,7 @@ fun QuestionScreen(nav: Nav) {
 /** The Figma state: both answered, 서연's card turning over. */
 @Composable
 private fun DemoQuestion(nav: Nav) {
-    QuestionLayout(nav, "후니", "여니", "우리의 일기장에 저장했어요. 다음 질문은 내일 열려요") {
+    QuestionLayout(nav, "후니", "여니", "기록에 남겼어요. 다음 질문은 내일 열려요") {
         QuestionCard(128, "이번 주말에\n나랑 꼭\n하고 싶은 것\n하나는?", "둘 다 답해서\n서로의 답이 열렸어요", fixedBreaks = true)
         AnswerCard("나의 답", "캠핑\n가고 싶어!", "0:04", "from. 후니", MyTape, MyCardAt)
         Flipping { AnswerCard("서연의 답", "캠핑 가서\n같이 별\n보고 싶어!", "0:05", "from. 여니", PartnerTape, PartnerCardAt.then(it)) }
@@ -133,8 +133,8 @@ private fun LiveQuestion(nav: Nav) {
     val now = Session.question
     val footer = when {
         // finished late (a question from an earlier day): the next one opened at once
-        revealed != null && now != null && now.question.no > revealed.question.no -> "우리의 일기장에 저장했어요. 다음 질문이 열렸어요"
-        shown?.bothAnswered == true -> "우리의 일기장에 저장했어요. 다음 질문은 내일 열려요"
+        revealed != null && now != null && now.question.no > revealed.question.no -> "기록에 남겼어요. 다음 질문이 열렸어요"
+        shown?.bothAnswered == true -> "기록에 남겼어요. 다음 질문은 내일 열려요"
         else -> null
     }
 

@@ -11,7 +11,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
@@ -101,14 +102,31 @@ object Session {
 
     var myId: String? by mutableStateOf(null)
         private set
-    var me: Profile? by mutableStateOf(null)
-        private set
+    // Compose state for the screens, mirrored in plain flows for the background parts: a snapshotFlow only
+    // fires when Compose sends snapshot notifications, which the service cannot count on (no UI while driving).
+    private var meState: Profile? by mutableStateOf(null)
+    private val meFlow = MutableStateFlow<Profile?>(null)
+    var me: Profile?
+        get() = meState
+        private set(value) {
+            meState = value
+            meFlow.value = value
+        }
     var couple: Couple? by mutableStateOf(null)
         private set
     var partner: Profile? by mutableStateOf(null)
         private set
-    var partnerDriving: Boolean by mutableStateOf(false)
-        private set
+    private var partnerDrivingState: Boolean by mutableStateOf(false)
+    private val _partnerDrivingFlow = MutableStateFlow(false)
+    /** [partnerDriving] for code outside the screens. */
+    val partnerDrivingFlow: StateFlow<Boolean> = _partnerDrivingFlow
+    var partnerDriving: Boolean
+        get() = partnerDrivingState
+        private set(value) {
+            if (value != _partnerDrivingFlow.value) Log.i(TAG, "partner driving $value")
+            partnerDrivingState = value
+            _partnerDrivingFlow.value = value
+        }
     private var loaded by mutableStateOf(false)
 
     /** The question we are on now (05), kept fresh with realtime. */
@@ -119,7 +137,16 @@ object Session {
      * The question both of us just finished, so 05 can turn the partner's card over before moving on.
      * 05 clears it when it closes.
      */
-    var revealed: QuestionState? by mutableStateOf(null)
+    private var revealedState: QuestionState? by mutableStateOf(null)
+    private val _revealedFlow = MutableStateFlow<QuestionState?>(null)
+    /** [revealed] for code outside the screens (DriveTalk). */
+    val revealedFlow: StateFlow<QuestionState?> = _revealedFlow
+    var revealed: QuestionState?
+        get() = revealedState
+        set(value) {
+            revealedState = value
+            _revealedFlow.value = value
+        }
 
     /** The repository once [start] ran, for screens that load lists themselves. */
     val repository: HeartRepository? get() = repo
@@ -173,10 +200,12 @@ object Session {
         job = scope.launch {
             launch {
                 // drive_status points at the profile, so nothing is sent before the profile exists
-                combine(CarSignals.driving.filterNotNull(), snapshotFlow { me != null }) { driving, registered ->
-                    driving.takeIf { registered }
+                combine(CarSignals.driving.filterNotNull(), meFlow) { driving, profile ->
+                    driving.takeIf { profile != null }
                 }.filterNotNull().distinctUntilChanged().collect { driving ->
-                    r.setDriving(driving).onFailure { Log.w(TAG, "set_driving failed: ${it.message}") }
+                    r.setDriving(driving)
+                        .onSuccess { Log.i(TAG, "set_driving $driving") }
+                        .onFailure { Log.w(TAG, "set_driving failed: ${it.message}") }
                 }
             }
             myId = try {
@@ -190,6 +219,7 @@ object Session {
             me = r.me()
             setCouple(r.couple())
             loaded = true
+            Log.i(TAG, "loaded: signed in ${myId != null}, profile ${me != null}, couple ${couple?.status}")
             launch { r.myCouple().collect { setCouple(it) } }
             launch { r.partnerDriving().collect { partnerDriving = it == true } }
             launch { r.watchCurrentQuestion().collect { onQuestion(it) } }
@@ -202,13 +232,39 @@ object Session {
             }
             // the partner's 06 hides the conditions this car cannot sense
             launch {
-                combine(CarSignals.unsupported, snapshotFlow { me }) { set, profile ->
+                combine(CarSignals.unsupported, meFlow) { set, profile ->
                     set.takeIf { profile != null && it != profile.unsupported.toSet() }
                 }.filterNotNull().debounce(3_000).distinctUntilChanged().collect { set ->
                     r.saveCarSupport(set)
                         .onSuccess { me = me?.copy(unsupported = set.sorted()) }
                         .onFailure { Log.w(TAG, "save_car_support failed: ${it.message}") }
                 }
+            }
+        }
+    }
+
+    /**
+     * Debug builds only (`--es register "지훈 39허7218 52하1109 여니 2025-09-20"`): the emulator loses its account
+     * when it restarts, and typing on the car keyboard is slow. Registers the name and plate, asks the partner's
+     * plate to connect, and once the partner accepted gives their plate the nickname and sets the day we met.
+     */
+    fun debugRegister(spec: String) {
+        val parts = spec.trim().split(Regex("\\s+"))
+        if (parts.size != 5) return Log.w(TAG, "register needs 5 words: $spec").let { }
+        val (name, plate, partnerPlate, nickname, met) = parts
+        scope.launch {
+            while (!loaded) delay(500)
+            if (me == null) saveProfile(name, plate).onFailure { Log.w(TAG, "register failed: ${it.message}"); return@launch }
+            if (couple == null) requestConnection(partnerPlate).onFailure { Log.w(TAG, "request failed: ${it.message}"); return@launch }
+            Log.i(TAG, "registered $name $plate, asked $partnerPlate; waiting for the partner to accept")
+            repeat(120) {
+                if (couple?.isActive == true) {
+                    updateCouple(nickname, LocalDate.parse(met))
+                        .onSuccess { Log.i(TAG, "connected, nickname $nickname") }
+                        .onFailure { Log.w(TAG, "setup failed: ${it.message}") }
+                    return@launch
+                }
+                delay(1_000)
             }
         }
     }
@@ -233,14 +289,18 @@ object Session {
     }
 
     /**
-     * When the question moves on after only I had answered, my partner just answered (late, on a later day):
-     * keep that one to show. When both had answered already, a new day began and today's question shows.
+     * My partner answered after me, so their answer is open now: keep that question in [revealed] (05 turns the
+     * card over, DriveTalk offers to play it). The same day the question stays; on a later day the next one
+     * opened at once. When both had answered already and the question moves on, a new day began: no reveal.
      */
     private suspend fun onQuestion(q: QuestionState?) {
         val before = question
         question = q
-        if (before != null && q != null && q.question.no > before.question.no && before.mine != null && !before.bothAnswered) {
-            repo?.questionAt(before.question.no)?.takeIf { it.bothAnswered }?.let { revealed = it }
+        if (before == null || q == null || before.mine == null || before.bothAnswered) return
+        when {
+            q.question.no == before.question.no && q.bothAnswered -> revealed = q
+            q.question.no > before.question.no ->
+                repo?.questionAt(before.question.no)?.takeIf { it.bothAnswered }?.let { revealed = it }
         }
     }
 

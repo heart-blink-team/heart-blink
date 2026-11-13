@@ -32,6 +32,7 @@ class HeartService : Service() {
         MessageOpener.start(this)
         NaviWatch.start(this)
         DriveTalk.start(this)
+        TogetherDistance.start(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY

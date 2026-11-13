@@ -244,6 +244,14 @@ class HeartRepository private constructor(private val appContext: Context) {
     }
 
     /** Messages I received (opened or not), newest first. */
+    /** [receivedMessages], or null when the read failed, so a passing network error does not empty a list. */
+    suspend fun receivedMessagesOrNull(): List<Message>? = call { c, me ->
+        c.from("messages").select {
+            filter { eq("receiver", me) }
+            order("created_at", Order.DESCENDING)
+        }.decodeList<Message>()
+    }.onFailure { Log.w("HeartRepository", "received messages failed: ${it.message}") }.getOrNull()
+
     suspend fun receivedMessages(): List<Message> = read(emptyList()) { c, me ->
         c.from("messages").select {
             filter { eq("receiver", me) }

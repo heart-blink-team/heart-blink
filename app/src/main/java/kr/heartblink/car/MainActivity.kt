@@ -31,6 +31,7 @@ import kr.heartblink.car.app.MessageOpener
 import kr.heartblink.car.app.NaviWatch
 import kr.heartblink.car.app.SignalProbe
 import kr.heartblink.car.app.Session
+import kr.heartblink.car.app.TogetherDistance
 import kr.heartblink.car.ui.screen.Arrival
 import kr.heartblink.car.ui.screen.MessageDraft
 import kr.heartblink.car.app.Stage
@@ -63,6 +64,8 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("talk_fast", false) == true) DriveTalk.fast = true
         if (BuildConfig.DEBUG) {
             intent?.getStringExtra("heard")?.let { MessageDraft.pendingHeard = it }
+            // the emulator has no one to say "응": every 지금 들을까요? counts as a yes
+            if (intent?.getBooleanExtra("talk_yes", false) == true) DriveTalk.autoYes = true
             // test the first start of the day without waiting for 4 a.m.
             if (intent?.getBooleanExtra("new_day", false) == true) {
                 getSharedPreferences("opener", MODE_PRIVATE).edit().remove("first_start_day").apply()
@@ -77,8 +80,11 @@ class MainActivity : ComponentActivity() {
         }
         HeartService.start(this)
         Session.start(this)
+        // an emulator that restarted has a new account: "이름 차번호 연인차번호 애칭 처음만난날"
+        if (BuildConfig.DEBUG) intent?.getStringExtra("register")?.let { Session.debugRegister(it) }
         CarSignals.start(this)
         MessageOpener.start(this)
+        TogetherDistance.start(this)
         askCarPermissions()
         setContent { App() }
     }

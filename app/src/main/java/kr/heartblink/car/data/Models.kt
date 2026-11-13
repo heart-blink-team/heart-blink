@@ -30,6 +30,8 @@ data class Couple(
     @SerialName("partner_nickname") val partnerNickname: String? = null,
     @SerialName("first_met") val firstMet: LocalDate? = null,
     @SerialName("question_no") val questionNo: Int = 1,
+    /** When the current question opened; one opened on an earlier day is one of us still owes an answer to. */
+    @SerialName("question_opened_at") val questionOpenedAt: Instant? = null,
     @SerialName("created_at") val createdAt: Instant? = null,
     @SerialName("accepted_at") val acceptedAt: Instant? = null,
     @SerialName("ended_at") val endedAt: Instant? = null,

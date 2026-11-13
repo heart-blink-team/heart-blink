@@ -122,7 +122,7 @@ private enum class ShopTab(val label: String, val count: Int, val screen: String
     Theme("하트 테마", 8, "21"),
     Color("색상", 6, "22"),
     Arrival("도착 효과", 6, "23"),
-    Diary("일기장", 6, "24"),
+    Diary("기록 종이", 6, "24"),
     Questions("질문 테마팩", 3, null),
     Album("기념일 앨범", 2, null),
 }
@@ -274,7 +274,7 @@ private fun CoupleSubscription(modifier: Modifier = Modifier) {
         Column(Modifier.weight(1f).clipToBounds(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("커플 구독", style = HeartType.Headline, color = c.textPrimary, maxLines = 1, softWrap = false)
             Text(
-                "질문 테마팩, 메시지 무제한, 우리의 일기장 무제한 저장. 한 명이 결제하면 둘 다 써요",
+                "질문 테마팩, 메시지 무제한, 기록 무제한 저장. 한 명이 결제하면 둘 다 써요",
                 style = HeartType.Label, color = c.textSecondary, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
             )
         }

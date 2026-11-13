@@ -26,6 +26,8 @@
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
     <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <!-- the driver's door opening while a message plays: it is played again on the next ride (read only) -->
+    <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
     <!-- the conditions are watched while the navigation is in front and in gear D -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
