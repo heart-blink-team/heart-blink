@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,11 +44,16 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
@@ -71,10 +77,7 @@ import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.HeartCar
 import kr.heartblink.car.ui.component.Inset
 import kr.heartblink.car.ui.component.Layered
-import kr.heartblink.car.ui.component.SecondaryButton
-import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
-import kr.heartblink.car.ui.component.outerShadow
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.Heart
 import kr.heartblink.car.ui.theme.HeartType
@@ -102,11 +105,10 @@ fun WiperEnvelopeScreen(nav: Nav, autoAdvance: Boolean = true) {
         nav = nav,
         next = "10",
         autoAdvance = autoAdvance,
-        chip = "비 오는 길, 와이퍼를 켜는 순간 열렸어요",
+        chip = "와이퍼를 켜는 순간 열렸어요",
         chipIcon = Glyph("s09_icon_wiper", Inset.pct(28.13f, 12.5f, 16.87f, 12.5f), Inset.pct(6.82f, 5f)),
         letter = listOf("비 오는 날엔", "천천히 와"),
         letterStyle = hand(76f, 86f),
-        letterRules = listOf(172f, 258f),
         backdrop = { RainOverlay() },
     )
 }
@@ -137,7 +139,6 @@ fun OfficeEnvelopeScreen(nav: Nav, autoAdvance: Boolean = true) {
         chipIcon = Glyph("s11_icon_flag", Inset.pct(12.5f, 25f, 9.38f, 25f), Inset.pct(5.2f, 8.13f, 5.2f, 8.12f)),
         letter = listOf("도착했구나!", "오늘 발표 잘할 거야"),
         letterStyle = hand(58f, 68f),
-        letterRules = listOf(154f, 222f),
     )
 }
 
@@ -173,7 +174,7 @@ fun FirstStartSceneScreen(nav: Nav) {
     SceneScreen(
         nav = nav,
         title = "오늘 첫 시동을 걸었어요",
-        condition = "그날 첫 시동을 걸 때",
+        condition = "그날 첫 시동",
         conditionIcon = Glyph("s13_icon_start", Inset.pct(18.75f, 15.63f, 12.5f, 15.63f), Inset.pct(5.91f)),
         sentAt = "어젯밤 11:20에 남김",
         message = listOf("오늘 발표", "잘해, 응원해!"),
@@ -219,7 +220,7 @@ private fun hand(size: Float, lineHeight: Float, bold: Boolean = true): TextStyl
     HeartType.gaegu(size, bold = bold, spacing = -0.04f).copy(lineHeight = lineHeight.sp)
 
 /**
- * The envelope step shared by every condition: both cars, the condition chip, the letter rising out of the
+ * The envelope step shared by every condition: both cars, the condition line, the letter rising out of the
  * envelope and the hint that the voice comes next. Flap 0.3 s, letter 0.6 s, then 1.5 s later the scene.
  * Tapping anywhere goes to the scene at once.
  */
@@ -232,7 +233,6 @@ private fun EnvelopeScreen(
     chipIcon: Glyph,
     letter: List<String>,
     letterStyle: TextStyle,
-    letterRules: List<Float>,
     partner: String = "서연",
     partnerNickname: String = "여니",
     me: String = "후니",
@@ -254,15 +254,12 @@ private fun EnvelopeScreen(
             HeartCar(me, Modifier.offset((-270).dp, 380.dp).size(720.dp, 558.dp))
             HeartCar(partnerNickname, Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp))
 
-            // condition chip, centered at y = 150
+            // condition line, centered at y = 150
             Row(
                 Modifier
                     .fillMaxWidth()
                     .wrapContentWidth(Alignment.CenterHorizontally)
                     .offset(y = 150.dp)
-                    .clip(Pill)
-                    .background(c.bgCard)
-                    .border(2.dp, c.line, Pill)
                     .padding(start = 22.dp, end = 26.dp, top = 12.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -273,63 +270,65 @@ private fun EnvelopeScreen(
 
             FigmaSvg("scene_envelope_back", Modifier.offset(451.dp, 316.dp).size(780.dp, 560.dp))
             Letter(
-                partner, partnerNickname, letter, letterStyle, letterRules,
+                partnerNickname, letter, letterStyle,
                 Modifier
                     .offset(521.dp, (236f + (1f - rise.value) * 170f).dp)
                     .alpha((rise.value * 2.5f).coerceIn(0f, 1f)),
             )
             FigmaSvg("scene_envelope_front", Modifier.offset(451.dp, 584.dp).size(780.dp, 350.dp))
 
-            NextHint("${partner}님 목소리로 이어서 들려줄게요", Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).offset(y = 946.dp))
+            NextHint("${partner}님 목소리로 들려줄게요", Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).offset(y = 946.dp))
         }
     }
 }
 
-/** The letter card standing in the envelope, 640 x 520 with two ruled lines under the message. */
+/** The letter card standing in the envelope, 640 x 520: the message and from, each with a ruled line under it. */
 @Composable
 private fun Letter(
-    partner: String,
     nickname: String,
     lines: List<String>,
     style: TextStyle,
-    rules: List<Float>,
     modifier: Modifier,
 ) {
     val c = Heart.colors
     val shape = RoundedCornerShape(18.dp)
     Box(modifier.size(640.dp, 520.dp).clip(shape).background(c.bgCard).border(4.dp, LetterInk, shape)) {
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 36.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("${partner}님이 남긴 메시지가 도착했어요", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-            Spacer(Modifier.height(22.dp))
+        Column(Modifier.fillMaxSize().padding(start = 52.dp, end = 52.dp, top = 40.dp)) {
             Text(
                 lines.joinToString("\n"), style = style.copy(textAlign = TextAlign.Center), color = c.textPrimary,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().ruled(ruleLift(style), c.line),
             )
             Spacer(Modifier.height(14.dp))
             Text(
                 "from. $nickname", style = hand(32f, 40f, bold = false).copy(textAlign = TextAlign.End), color = c.textSecondary,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().ruled(4f, c.line),
             )
         }
-        rules.forEach { y -> Box(Modifier.offset(44.dp, y.dp).size(544.dp, 2.dp).background(c.line)) }
     }
 }
 
-/** "Voice comes next" pill under the envelope; its three dots breathe while waiting. */
+/** A 2 px ruled line [lift] above the bottom of a text block, reaching 4 px past it on both sides. */
+private fun Modifier.ruled(lift: Float, color: Color): Modifier = drawWithContent {
+    drawContent()
+    val side = 4.dp.toPx()
+    drawRect(color, Offset(-side, size.height - lift.dp.toPx()), Size(size.width + side * 2, 2.dp.toPx()))
+}
+
+/** Where the ruled line sits under the handwritten message, by its size (Figma 09: 76 px, 11: 58 px). */
+private fun ruleLift(style: TextStyle): Float = when {
+    style.fontSize.value >= 76f -> 36f
+    style.fontSize.value >= 58f -> 18f
+    else -> 12f
+}
+
+/** "Voice comes next" line under the envelope; its three dots breathe while waiting. */
 @Composable
 private fun NextHint(text: String, modifier: Modifier) {
     val c = Heart.colors
     val t = rememberInfiniteTransition(label = "hint")
     val dots by t.animateFloat(0.45f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dots")
     Row(
-        modifier
-            .clip(Pill)
-            .background(Color.White)
-            .border(2.dp, c.line, Pill)
-            .padding(horizontal = 26.dp, vertical = 14.dp),
+        modifier.padding(horizontal = 26.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -364,7 +363,6 @@ private fun SceneScreen(
     message: List<String>,
     voiceSeconds: Int,
     voiceDelayMillis: Int = FadeMillis,
-    partner: String = "서연",
     partnerNickname: String = "여니",
     card: (@Composable () -> Unit)? = null,
     scene: @Composable BoxScope.() -> Unit,
@@ -378,40 +376,39 @@ private fun SceneScreen(
         ) {
             SceneCard(title, scene)
             if (card != null) card()
-            else MessageCard(partner, partnerNickname, condition, conditionIcon, sentAt, message, voiceSeconds, voiceDelayMillis)
+            else MessageCard(partnerNickname, condition, conditionIcon, sentAt, message, voiceSeconds, voiceDelayMillis)
         }
     }
 }
 
-private val CardShadow = Shadow(0f, 14f, 36f, Color(0x1429211F))
-
+/** The drawing on the page itself (no card): the P mark above its top right corner, [title] read out for it. */
 @Composable
 private fun SceneCard(title: String, scene: @Composable BoxScope.() -> Unit) {
-    val c = Heart.colors
-    val shape = RoundedCornerShape(36.dp)
     Column(
-        Modifier
-            .outerShadow(shape, CardShadow)
-            .clip(shape)
-            .background(c.bgCard)
-            .border(2.dp, c.line, shape)
-            .padding(start = 26.dp, end = 26.dp, top = 24.dp, bottom = 26.dp),
+        Modifier.padding(start = 26.dp, end = 26.dp, top = 24.dp, bottom = 26.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Row(Modifier.width(950.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-            Box(Modifier.clip(Pill).background(c.pinkLight).padding(start = 16.dp, end = 18.dp, top = 6.dp, bottom = 6.dp)) {
-                Text("주차 중 (P)", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-            }
-        }
-        Box(Modifier.size(950.dp, 722.dp).clip(RoundedCornerShape(24.dp)), content = scene)
+        Row(Modifier.width(950.dp), horizontalArrangement = Arrangement.End) { ParkedMark() }
+        Box(
+            Modifier.size(950.dp, 722.dp).clip(RoundedCornerShape(24.dp)).semantics { contentDescription = title },
+            content = scene,
+        )
     }
 }
 
-/** 568 x 840 card: who left it, the condition, the handwritten message on ruled lines, the voice and 다시 듣기. */
+/** 46 px P in a ring: the car is parked. */
+@Composable
+private fun ParkedMark() {
+    val c = Heart.colors
+    Box(
+        Modifier.size(46.dp).border(3.dp, c.textSecondary, CircleShape).clearAndSetSemantics { contentDescription = "주차 중" },
+        contentAlignment = Alignment.Center,
+    ) { Text("P", style = HeartType.noto(24f, 700), color = c.textSecondary, maxLines = 1) }
+}
+
+/** The demo card: the recorded voice plays after [voiceDelayMillis]; 다시 듣기 starts it again from 0. */
 @Composable
 private fun MessageCard(
-    partner: String,
     nickname: String,
     condition: String,
     conditionIcon: Glyph,
@@ -420,10 +417,6 @@ private fun MessageCard(
     voiceSeconds: Int,
     voiceDelayMillis: Int,
 ) {
-    val c = Heart.colors
-    val shape = RoundedCornerShape(36.dp)
-
-    // Playback of the recorded voice; 다시 듣기 starts it again from 0.
     var plays by remember { mutableIntStateOf(0) }
     val elapsed = remember { Animatable(0f) }
     LaunchedEffect(plays) {
@@ -431,28 +424,35 @@ private fun MessageCard(
         if (plays == 0) delay(voiceDelayMillis.toLong())
         elapsed.animateTo(voiceSeconds.toFloat(), tween(voiceSeconds * 1000, easing = LinearEasing))
     }
+    MessageCardLayout(sentAt, condition, conditionIcon, message.joinToString("\n"), hand(76f, 86f), nickname) {
+        VoiceRow(playing = true, time = "${clock(elapsed.value.toInt())} / ${clock(voiceSeconds)}")
+        Spacer(Modifier.height(18.dp))
+        ReplayButton(Modifier.fillMaxWidth(), onClick = { plays++ })
+    }
+}
 
-    Box(
-        Modifier
-            .size(568.dp, 840.dp)
-            .outerShadow(shape, CardShadow)
-            .clip(shape)
-            .background(c.bgCard)
-            .border(2.dp, c.line, shape),
-    ) {
+/**
+ * 568 x 840 card shared by the demo and the live scene: when it was left, the condition, the handwritten
+ * message and from, then [bottom] (the voice and the buttons) at the foot. The heart stamp sits in the corner.
+ */
+@Composable
+private fun MessageCardLayout(
+    sentAt: String,
+    condition: String,
+    conditionIcon: Glyph,
+    message: String,
+    messageStyle: TextStyle,
+    nickname: String,
+    bottom: @Composable ColumnScope.() -> Unit,
+) {
+    val c = Heart.colors
+    val shape = RoundedCornerShape(36.dp)
+    Box(Modifier.size(568.dp, 840.dp).clip(shape).background(c.bgCard).border(2.dp, c.line, shape)) {
         Column(Modifier.fillMaxSize().padding(horizontal = 44.dp, vertical = 40.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(56.dp).clip(CircleShape).background(c.pinkLight), contentAlignment = Alignment.Center) {
-                    Text(partner.take(1), style = HeartType.gaegu(34f), color = c.textPrimary)
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("${partner}님이 남겨 둔 메시지", style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
-                    Text(sentAt, style = HeartType.Label, color = c.textTertiary, maxLines = 1)
-                }
-            }
+            Text(sentAt, style = HeartType.Label, color = c.textSecondary, maxLines = 1)
             Spacer(Modifier.height(14.dp))
             Row(
-                Modifier.clip(Pill).background(c.pinkLight).padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                Modifier.padding(end = 20.dp, top = 8.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -460,34 +460,44 @@ private fun MessageCard(
                 Text(condition, style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1)
             }
             Spacer(Modifier.height(36.dp))
-            Text(message.joinToString("\n"), style = hand(76f, 86f), color = c.textPrimary, modifier = Modifier.fillMaxWidth())
+            Text(message, style = messageStyle, color = c.textPrimary, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(10.dp))
             Text(
                 "from. $nickname", style = hand(32f, 40f, bold = false).copy(textAlign = TextAlign.End), color = c.textSecondary,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.weight(1f))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(Pill)
-                    .background(c.pinkLight)
-                    .padding(start = 12.dp, end = 22.dp, top = 12.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FigmaSvg("scene_pause", Modifier.size(52.dp))
-                FigmaSvg("scene_waveform", Modifier.size(168.dp, 44.dp))
-                Text("${clock(elapsed.value.toInt())} / ${clock(voiceSeconds)}", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-            }
-            Spacer(Modifier.height(18.dp))
-            SecondaryButton("다시 듣기", Modifier.fillMaxWidth(), onClick = { plays++ })
+            bottom()
         }
 
         // heart stamp in the top right corner, tilted 8 degrees
         FigmaSvg("scene_heart_stamp", Modifier.offset(442.54.dp, 25.53.dp).size(86.dp, 100.dp).rotate(-8f))
-        listOf(302f, 388f, 474f, 560f).forEach { y -> Box(Modifier.offset(42.dp, y.dp).size(480.dp, 2.dp).background(c.line)) }
     }
+}
+
+/** Play or pause, the waveform and the time, straight on the card. */
+@Composable
+private fun VoiceRow(playing: Boolean, time: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().padding(end = 22.dp, top = 12.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FigmaSvg(if (playing) "scene_pause" else "s06_play", Modifier.size(52.dp))
+        FigmaSvg("scene_waveform", Modifier.size(168.dp, 44.dp))
+        Text(time, style = HeartType.Label, color = Heart.colors.textSecondary, maxLines = 1)
+    }
+}
+
+/** 다시 듣기: white with a 2 px pink line inside and a deep pink label. */
+@Composable
+private fun ReplayButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = Heart.colors
+    val shape = RoundedCornerShape(28.dp)
+    Box(
+        modifier.height(88.dp).clip(shape).background(c.bgCard).border(2.dp, c.pinkAccent, shape).tap(onClick),
+        contentAlignment = Alignment.Center,
+    ) { Text("다시 듣기", style = HeartType.Headline, color = c.pinkDeep, maxLines = 1, modifier = Modifier.padding(horizontal = 40.dp)) }
 }
 
 private fun clock(seconds: Int) = "%d:%02d".format(seconds / 60, seconds % 60)
@@ -556,7 +566,7 @@ internal object Arrival {
     var current by mutableStateOf<Message?>(null)
 }
 
-/** How a condition looks on the envelope chip, the scene title, the card pill and the drawing. */
+/** How a condition looks on the envelope line, the scene title (read out for the drawing), the card and the drawing. */
 private class Look(
     val chip: String,
     val icon: Glyph,
@@ -668,7 +678,6 @@ private fun LiveEnvelopeScreen(nav: Nav) {
         chipIcon = l.icon,
         letter = listOf(m.letterText()),
         letterStyle = letterStyle(m.letterText()),
-        letterRules = listOf(172f, 258f),
         partner = v.partnerName,
         partnerNickname = v.partnerNickname,
         me = v.myNickname,
@@ -694,18 +703,15 @@ private fun LiveSceneScreen(nav: Nav) {
         sentAt = sentAt,
         message = listOf(m.letterText()),
         voiceSeconds = 0,
-        partner = v.partnerName,
         partnerNickname = v.partnerNickname,
-        card = { LiveMessageCard(m, v.partnerName, v.partnerNickname, l, sentAt, nav) },
+        card = { LiveMessageCard(m, v.partnerNickname, l, sentAt, nav) },
         scene = l.scene,
     )
 }
 
 /** The message card with the partner's real voice; 다음 메시지 goes on to the next opened one. */
 @Composable
-private fun LiveMessageCard(m: Message, partner: String, nickname: String, l: Look, sentAt: String, nav: Nav) {
-    val c = Heart.colors
-    val shape = RoundedCornerShape(36.dp)
+private fun LiveMessageCard(m: Message, nickname: String, l: Look, sentAt: String, nav: Nav) {
     val scope = rememberCoroutineScope()
     val playback = rememberVoicePlayback()
     val progress by playback.progress.collectAsState(initial = 0f)
@@ -734,69 +740,21 @@ private fun LiveMessageCard(m: Message, partner: String, nickname: String, l: Lo
         nav.go(if (rest.isEmpty()) "04" else "arrive")
     }
 
-    Box(
-        Modifier
-            .size(568.dp, 840.dp)
-            .outerShadow(shape, CardShadow)
-            .clip(shape)
-            .background(c.bgCard)
-            .border(2.dp, c.line, shape),
-    ) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 44.dp, vertical = 40.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(56.dp).clip(CircleShape).background(c.pinkLight), contentAlignment = Alignment.Center) {
-                    Text(partner.take(1), style = HeartType.gaegu(34f), color = c.textPrimary)
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("${partner}님이 남겨 둔 메시지", style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
-                    Text(sentAt, style = HeartType.Label, color = c.textTertiary, maxLines = 1)
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(
-                Modifier.clip(Pill).background(c.pinkLight).padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GlyphIcon(l.icon, 28.dp)
-                Text(l.condition, style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1)
-            }
-            Spacer(Modifier.height(36.dp))
-            Text(m.letterText(), style = letterStyle(m.letterText()), color = c.textPrimary, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "from. $nickname", style = hand(32f, 40f, bold = false).copy(textAlign = TextAlign.End), color = c.textSecondary,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.weight(1f))
-            if (path != null) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(Pill)
-                        .background(c.pinkLight)
-                        .tap { playback.toggleRemote(path, heard) }
-                        .padding(start = 12.dp, end = 22.dp, top = 12.dp, bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FigmaSvg(if (playing) "scene_pause" else "s06_play", Modifier.size(52.dp))
-                    FigmaSvg("scene_waveform", Modifier.size(168.dp, 44.dp))
-                    val elapsed = if (playing) (progress * totalMs).toInt() else 0
-                    Text("${durationText(elapsed)} / ${durationText(totalMs)}", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-                }
-                Spacer(Modifier.height(18.dp))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (path != null) {
-                    SecondaryButton("다시 듣기", Modifier.weight(1f), onClick = {
-                        playback.stop()
-                        playback.toggleRemote(path, heard)
-                    })
-                }
-                PrimaryButton(if (rest.isEmpty()) "홈으로" else "다음 메시지", Modifier.weight(1f), onClick = goOn)
-            }
+    MessageCardLayout(sentAt, l.condition, l.icon, m.letterText(), letterStyle(m.letterText()), nickname) {
+        if (path != null) {
+            val elapsed = if (playing) (progress * totalMs).toInt() else 0
+            VoiceRow(playing, "${durationText(elapsed)} / ${durationText(totalMs)}", Modifier.tap { playback.toggleRemote(path, heard) })
+            Spacer(Modifier.height(18.dp))
         }
-        FigmaSvg("scene_heart_stamp", Modifier.offset(442.54.dp, 25.53.dp).size(86.dp, 100.dp).rotate(-8f))
+        // 다시 듣기 hugs its label; the pink button takes the rest of the row
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (path != null) {
+                ReplayButton(onClick = {
+                    playback.stop()
+                    playback.toggleRemote(path, heard)
+                })
+            }
+            PrimaryButton(if (rest.isEmpty()) "홈으로" else "다음 메시지", Modifier.weight(1f), onClick = goOn)
+        }
     }
 }

@@ -7,7 +7,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -58,43 +60,70 @@ fun Raised(
 private val AccentInner = arrayOf(Shadow(5f, 5f, 10f, Color(0x59FFFFFF)), Shadow(-5f, -7f, 14f, Color(0x21292124)))
 private val CardInner = arrayOf(Shadow(6f, 6f, 12f, Color(0xD9FFFFFF)), Shadow(-6f, -8f, 16f, Color(0x0D292124)))
 
-/** Heart/Button Primary: pink, white 32px bold label. */
+/** Heart2/Button Primary: flat pink, white 32px bold label, no shadow. [enabled] false dims it (sent, waiting). */
 @Composable
-fun PrimaryButton(label: String, modifier: Modifier = Modifier.width(360.dp), onClick: (() -> Unit)? = null) {
-    Raised(
-        ButtonShape, Heart.colors.pinkAccent, modifier.height(88.dp).tap(onClick),
-        drop = Shadow(0f, 10f, 22f, Color(0x24292124)), inner = AccentInner,
-    ) { Text(label, style = HeartType.Headline, color = Heart.colors.textOnAccent, modifier = Modifier.padding(horizontal = 40.dp)) }
+fun PrimaryButton(label: String, modifier: Modifier = Modifier.width(360.dp), enabled: Boolean = true, onClick: (() -> Unit)? = null) {
+    Box(
+        modifier
+            .height(88.dp)
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(ButtonShape)
+            .background(Heart.colors.pinkAccent)
+            .tap(onClick.takeIf { enabled }),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, style = HeartType.Headline, color = Heart.colors.textOnAccent, maxLines = 1, modifier = Modifier.padding(horizontal = 40.dp)) }
 }
 
-/** Heart/Button Secondary: white with a light border. */
+/** Heart2/Button Secondary: flat white with a 2px hairline. */
 @Composable
 fun SecondaryButton(label: String, modifier: Modifier = Modifier.width(360.dp), onClick: (() -> Unit)? = null) {
-    Raised(
-        ButtonShape, Heart.colors.bgCard, modifier.height(88.dp).tap(onClick), border = Heart.colors.pinkMid,
-        drop = Shadow(0f, 10f, 22f, Color(0x14292124)), inner = CardInner,
-    ) { Text(label, style = HeartType.Headline, color = Heart.colors.textPrimary, modifier = Modifier.padding(horizontal = 40.dp)) }
+    val c = Heart.colors
+    Box(
+        modifier
+            .height(88.dp)
+            .clip(ButtonShape)
+            .background(c.bgCard)
+            .border(2.dp, c.line, ButtonShape)
+            .tap(onClick),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, style = HeartType.Headline, color = c.textPrimary, maxLines = 1, modifier = Modifier.padding(horizontal = 40.dp)) }
 }
 
-/** Heart/Chip: a condition the message opens on. */
+/** A text-only action, deep pink unless [color] is given (끊기, 바꾸기, 글자로만 쓰기): no box, a touch height of 64. */
+@Composable
+fun TextAction(
+    label: String,
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = HeartType.BodyStrong,
+    color: Color = Heart.colors.pinkDeep,
+    onClick: (() -> Unit)? = null,
+) {
+    Box(modifier.height(64.dp).tap(onClick), contentAlignment = Alignment.CenterStart) {
+        Text(label, style = style.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = color, maxLines = 1)
+    }
+}
+
+/** Heart2/Chip: a flat pill; selected is solid pink with white text. */
 @Composable
 fun HeartChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val c = Heart.colors
-    Raised(
-        RoundedCornerShape(999.dp), if (selected) c.pinkAccent else c.bgCard, modifier.tap(onClick),
-        border = if (selected) c.pinkAccent else c.pinkMid,
-        drop = Shadow(0f, 10f, 22f, if (selected) Color(0x24292124) else Color(0x14292124)),
-        inner = if (selected) AccentInner else CardInner,
+    val shape = RoundedCornerShape(999.dp)
+    Box(
+        modifier
+            .clip(shape)
+            .background(if (selected) c.pinkAccent else c.bgCard)
+            .border(2.dp, if (selected) c.pinkAccent else c.pinkMid, shape)
+            .tap(onClick),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
-            label, style = HeartType.BodyStrong, color = if (selected) c.textOnAccent else c.textPrimary,
-            // CSS draws the 2 px border outside the padding
-            modifier = Modifier.padding(start = 26.dp, end = 28.dp, top = 16.dp, bottom = 16.dp),
+            label, style = HeartType.BodyStrong, color = if (selected) c.textOnAccent else c.textPrimary, maxLines = 1,
+            modifier = Modifier.padding(start = 24.dp, end = 26.dp, top = 14.dp, bottom = 14.dp),
         )
     }
 }
 
-/** Heart/Field: a label over a white input box (typing only while parked). */
+/** Heart2/Field: a label over a flat white input box (typing only while parked). */
 @Composable
 fun HeartField(label: String, modifier: Modifier = Modifier.width(640.dp), value: @Composable () -> Unit) {
     val c = Heart.colors
@@ -107,7 +136,6 @@ fun HeartField(label: String, modifier: Modifier = Modifier.width(640.dp), value
                 .height(84.dp)
                 .clip(shape)
                 .background(c.bgCard)
-                .innerShadow(shape, Shadow(-2f, -2f, 6f, Color(0xE6FFFFFF)), Shadow(3f, 4f, 8f, Color(0x0D292124)))
                 .border(2.dp, c.line, shape)
                 .padding(horizontal = 28.dp),
             contentAlignment = Alignment.CenterStart,
@@ -115,29 +143,54 @@ fun HeartField(label: String, modifier: Modifier = Modifier.width(640.dp), value
     }
 }
 
+/**
+ * Heart2/Tab Underline: category filters as words, the picked one deep pink and bold with a pink bar under it
+ * (6 px, as wide as the word). [count] follows the word in a lighter weight, as in 기록 and 상점.
+ */
+@Composable
+fun UnderlineTabs(
+    labels: List<String>,
+    selected: Int,
+    modifier: Modifier = Modifier,
+    counts: List<String?> = emptyList(),
+    gap: Dp = 36.dp,
+    onSelect: ((Int) -> Unit)? = null,
+) {
+    val c = Heart.colors
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.Bottom) {
+        labels.forEachIndexed { i, label ->
+            val on = i == selected
+            Column(
+                Modifier.width(IntrinsicSize.Max).tap(onSelect?.let { { it(i) } }).padding(top = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                    Text(label, style = HeartType.noto(30f, if (on) 700 else 500, 1.2f), color = if (on) c.pinkDeep else c.textSecondary, maxLines = 1)
+                    counts.getOrNull(i)?.let { Text(it, style = HeartType.noto(30f, 500, 1.2f), color = if (on) c.pinkDeep else c.textTertiary, maxLines = 1) }
+                }
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (on) c.pinkAccent else Color.Transparent))
+            }
+        }
+    }
+}
+
 @Composable
 fun HeartField(label: String, value: String, modifier: Modifier = Modifier.width(640.dp)) =
     HeartField(label, modifier) { Text(value, style = HeartType.BodyStrong, color = Heart.colors.textPrimary) }
 
-/** Heart/Distance Badge: total distance both have driven since they connected. */
+/** Heart2/Distance Badge: total distance both have driven at the same time, on the page itself (no pill). */
 @Composable
 fun DistanceBadge(km: String, modifier: Modifier = Modifier) {
     val c = Heart.colors
-    val shape = RoundedCornerShape(999.dp)
     Row(
-        modifier
-            .outerShadow(shape, Shadow(0f, 8f, 20f, Color(0x0F29211F)))
-            .clip(shape)
-            .background(c.bgCard)
-            .border(2.dp, c.line, shape)
-            .padding(start = 20.dp, end = 30.dp, top = 12.dp, bottom = 12.dp),
+        modifier.padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FigmaSvg("badge_road", Modifier.size(124.dp, 50.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
             Text("함께 달린 거리", style = HeartType.Label, color = c.textSecondary, modifier = Modifier.alignByBaseline())
-            Text(km, style = HeartType.jua(40f), color = c.textPrimary, modifier = Modifier.alignByBaseline())
+            Text(km, style = HeartType.jua(30f), color = c.textPrimary, modifier = Modifier.alignByBaseline())
             Text("km", style = HeartType.BodyStrong, color = c.textSecondary, modifier = Modifier.alignByBaseline())
         }
     }

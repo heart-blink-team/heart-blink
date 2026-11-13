@@ -50,10 +50,8 @@ import kr.heartblink.car.data.WordFix
 import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.HeartCar
 import kr.heartblink.car.ui.component.PrimaryButton
-import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
-import kr.heartblink.car.ui.component.innerShadow
-import kr.heartblink.car.ui.component.outerShadow
+import kr.heartblink.car.ui.component.TextAction
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.Heart
 import kr.heartblink.car.ui.theme.HeartType
@@ -112,10 +110,10 @@ fun QuestionScreen(nav: Nav) {
 /** The Figma state: both answered, 서연's card turning over. */
 @Composable
 private fun DemoQuestion(nav: Nav) {
-    QuestionLayout(nav, "후니", "여니", "기록에 남겼어요. 다음 질문은 내일 열려요") {
-        QuestionCard(128, "이번 주말에\n나랑 꼭\n하고 싶은 것\n하나는?", "둘 다 답해서\n서로의 답이 열렸어요", fixedBreaks = true)
-        AnswerCard("나의 답", "캠핑\n가고 싶어!", "0:04", "from. 후니", MyTape, MyCardAt)
-        Flipping { AnswerCard("서연의 답", "캠핑 가서\n같이 별\n보고 싶어!", "0:05", "from. 여니", PartnerTape, PartnerCardAt.then(it)) }
+    QuestionLayout(nav, "후니", "여니", "다음 질문은 내일 열려요") {
+        QuestionCard(128, "이번 주말에\n나랑 꼭\n하고 싶은 것\n하나는?", fixedBreaks = true)
+        AnswerCard("캠핑\n가고 싶어!", "0:04", "from. 후니", MyTape, MyCardAt)
+        Flipping { AnswerCard("캠핑 가서\n같이 별\n보고 싶어!", "0:05", "from. 여니", PartnerTape, PartnerCardAt.then(it)) }
     }
 }
 
@@ -131,31 +129,27 @@ private fun LiveQuestion(nav: Nav) {
     var editing by remember { mutableStateOf(false) }
     var shift by remember { mutableStateOf(false) }
     val now = Session.question
+    // finished late (a question from an earlier day): the next one opened at once
+    val nextOpened = revealed != null && now != null && now.question.no > revealed.question.no
     val footer = when {
-        // finished late (a question from an earlier day): the next one opened at once
-        revealed != null && now != null && now.question.no > revealed.question.no -> "기록에 남겼어요. 다음 질문이 열렸어요"
-        shown?.bothAnswered == true -> "기록에 남겼어요. 다음 질문은 내일 열려요"
+        nextOpened -> "다음 질문 보기 →"
+        shown?.bothAnswered == true -> "다음 질문은 내일 열려요"
         else -> null
     }
 
     Box(Modifier.fillMaxSize()) {
-        QuestionLayout(nav, v.myNickname, v.partnerNickname, footer) {
+        QuestionLayout(nav, v.myNickname, v.partnerNickname, footer, onFooter = if (nextOpened) ({ Session.revealed = null }) else null) {
             if (shown == null) {
-                QuestionCard(null, "질문을 불러오고 있어요", "")
+                QuestionCard(null, "질문을 불러오고 있어요")
                 return@QuestionLayout
             }
             val partner = v.partnerName
-            val status = when {
-                shown.bothAnswered -> "둘 다 답해서\n서로의 답이 열렸어요"
-                shown.mine != null -> "${partner}님이 답하면\n서로의 답이 열려요"
-                else -> "둘 다 답하면\n서로의 답이 열려요"
-            }
-            QuestionCard(shown.question.no, shown.question.body, status)
+            QuestionCard(shown.question.no, shown.question.body)
 
             val mine = shown.mine
             if (mine != null) {
                 AnswerCard(
-                    "나의 답", answerText(mine), mine.audioMs?.let(::durationText), "from. ${v.myNickname}", MyTape, MyCardAt,
+                    answerText(mine), mine.audioMs?.let(::durationText), "from. ${v.myNickname}", MyTape, MyCardAt,
                     playing = playback.isPlaying(mine.audioPath),
                     onPlay = mine.audioPath?.let { p -> { playback.toggleRemote(p) } },
                 )
@@ -191,7 +185,7 @@ private fun LiveQuestion(nav: Nav) {
                 key(shown.question.no) {
                     Flipping {
                         AnswerCard(
-                            "${partner}의 답", answerText(theirs), theirs.audioMs?.let(::durationText), "from. ${v.partnerNickname}",
+                            answerText(theirs), theirs.audioMs?.let(::durationText), "from. ${v.partnerNickname}",
                             PartnerTape, PartnerCardAt.then(it),
                             playing = playback.isPlaying(theirs.audioPath),
                             onPlay = theirs.audioPath?.let { p -> { playback.toggleRemote(p) } },
@@ -199,7 +193,7 @@ private fun LiveQuestion(nav: Nav) {
                     }
                 }
             } else {
-                HiddenCard("${partner}의 답", if (mine == null) "둘 다 답하면 열려요" else "${partner}님이 답하면 열려요")
+                HiddenCard(if (mine == null) "둘 다 답하면 열려요" else "${partner}님이 답하면 열려요")
             }
         }
         if (editing) {
@@ -218,20 +212,38 @@ private fun LiveQuestion(nav: Nav) {
 
 private fun answerText(a: Answer): String = a.body.ifBlank { "목소리로 답했어요" }
 
-/** The two plates, then the cards, the footer line and the doodles on top. */
+/**
+ * The two plates, then the cards, the footer line between the cards and the doodles on top.
+ * With [onFooter] the footer is a text action instead of a plain line.
+ */
 @Composable
-private fun QuestionLayout(nav: Nav, myNickname: String, partnerNickname: String, footer: String?, cards: @Composable BoxScope.() -> Unit) {
+private fun QuestionLayout(
+    nav: Nav,
+    myNickname: String,
+    partnerNickname: String,
+    footer: String?,
+    onFooter: (() -> Unit)? = null,
+    cards: @Composable BoxScope.() -> Unit,
+) {
     val c = Heart.colors
     HeartWindow(Tab.Question, nav) {
         HeartCar(myNickname, Modifier.offset((-270).dp, 400.dp).size(720.dp, 558.dp))
         HeartCar(partnerNickname, Modifier.offset(1232.dp, 400.dp).size(720.dp, 558.dp))
         cards()
         if (footer != null) {
-            Text(
-                footer,
-                style = HeartType.Label, color = c.textSecondary, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().offset(y = 1008.dp),
-            )
+            val style = HeartType.noto(26f, 500, 1.2f)
+            if (onFooter != null) {
+                // the 64 px touch row centred on the same line as the plain footer
+                Box(Modifier.fillMaxWidth().offset(y = 988.dp), contentAlignment = Alignment.Center) {
+                    TextAction(footer, style = style, onClick = onFooter)
+                }
+            } else {
+                Text(
+                    footer,
+                    style = style, color = c.textSecondary, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().offset(y = 1004.dp),
+                )
+            }
         }
         FigmaSvg("s05_sparkle", Modifier.offset(600.dp, 250.dp).size(40.dp))
         FigmaSvg("s05_sparkle_small", Modifier.offset(648.dp, 236.dp).size(24.dp))
@@ -255,26 +267,18 @@ private fun Flipping(content: @Composable (Modifier) -> Unit) {
 /** Korean lines break between words, so a question from the server wraps like the Figma one. */
 private val WordBreak = LineBreak.Heading.copy(wordBreak = LineBreak.WordBreak.Phrase)
 
+/** The question itself, written by hand on the page between the two cards. */
 @Composable
-private fun QuestionCard(no: Int?, body: String, status: String, fixedBreaks: Boolean = false) {
+private fun QuestionCard(no: Int?, body: String, fixedBreaks: Boolean = false) {
     val c = Heart.colors
-    val shape = RoundedCornerShape(40.dp)
-    val pill = RoundedCornerShape(999.dp)
     Column(
         Modifier
             .offset(560.dp, 222.dp)
             .size(562.dp, 760.dp)
-            .outerShadow(shape, Shadow(0f, 18f, 44f, Color(0x0D292124)))
-            .clip(shape)
-            .background(c.pinkSoft)
-            .innerShadow(shape, Shadow(0f, -6f, 16f, Color(0x08292124)), Shadow(0f, 6f, 14f, Color(0xB3FFFFFF)))
             .padding(start = 130.dp, end = 130.dp, top = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.clip(pill).background(c.bgCard).padding(horizontal = 22.dp, vertical = 8.dp)) {
-            Text("오늘의 질문", style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1)
-        }
-        Spacer(Modifier.height(if (fixedBreaks) 150.dp else 120.dp))
+        Spacer(Modifier.height(150.dp))
         if (no != null) Text("${no}번째 질문", style = HeartType.Label, color = c.textSecondary, textAlign = TextAlign.Center)
         Spacer(Modifier.height(20.dp))
         Text(
@@ -283,42 +287,27 @@ private fun QuestionCard(no: Int?, body: String, status: String, fixedBreaks: Bo
             color = c.textPrimary, textAlign = TextAlign.Center,
             modifier = if (fixedBreaks) Modifier.wrapContentWidth(unbounded = true) else Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(36.dp))
-        Text(
-            status,
-            style = HeartType.Label.copy(lineHeight = 34.sp), color = c.pinkDeep, textAlign = TextAlign.Center,
-            modifier = Modifier.wrapContentWidth(unbounded = true),
-        )
     }
 }
 
 /** Masking tape over a card corner: [x], [y] is its top-left in the card, turned [rotation] degrees. */
 private class Tape(val x: Float, val y: Float, val rotation: Float)
 
-/** The white notebook card of an answer: title, pink rule, then [content]; the tape sits on top. */
+/** The white notebook card of an answer, flat with a hairline; the tape sits on top. */
 @Composable
-private fun AnswerFrame(title: String, tape: Tape, modifier: Modifier, lines: Boolean, content: @Composable ColumnScope.() -> Unit) {
+private fun AnswerFrame(tape: Tape, modifier: Modifier, lines: Boolean, content: @Composable ColumnScope.() -> Unit) {
     val c = Heart.colors
     val shape = RoundedCornerShape(40.dp)
-    Box(
-        modifier
-            .size(500.dp, 760.dp)
-            .innerShadow(shape, Shadow(6f, 6f, 12f, Color(0xD9FFFFFF)), Shadow(-6f, -8f, 16f, Color(0x0D292124))),
-    ) {
+    Box(modifier.size(500.dp, 760.dp)) {
         Column(
             Modifier
                 .fillMaxSize()
-                .outerShadow(shape, Shadow(0f, 18f, 40f, Color(0x12292124)))
                 .clip(shape)
                 .background(c.bgCard)
                 .border(2.dp, c.line, shape)
                 .padding(start = 46.dp, end = 46.dp, top = 46.dp, bottom = 38.dp),
-        ) {
-            Text(title, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-            Spacer(Modifier.height(20.dp))
-            Box(Modifier.size(412.dp, 3.dp).clip(RoundedCornerShape(2.dp)).background(c.pinkMid))
-            content()
-        }
+            content = content,
+        )
         // notebook lines under the two lines of the answer and one more
         if (lines) {
             listOf(280, 366, 452).forEach { y ->
@@ -331,7 +320,6 @@ private fun AnswerFrame(title: String, tape: Tape, modifier: Modifier, lines: Bo
 
 @Composable
 private fun AnswerCard(
-    title: String,
     answer: String,
     duration: String?,
     from: String,
@@ -343,7 +331,7 @@ private fun AnswerCard(
     val c = Heart.colors
     // long answers from the server get a smaller hand so they still fit the card
     val big = answer.length <= 16
-    AnswerFrame(title, tape, modifier, lines = big) {
+    AnswerFrame(tape, modifier, lines = big) {
         Spacer(Modifier.height(90.dp))
         Text(
             answer,
@@ -352,13 +340,12 @@ private fun AnswerCard(
         )
         Spacer(Modifier.weight(1f))
         if (duration != null) {
+            // play, waveform and length straight on the card, no pill behind them
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(c.pinkLight)
                     .tap(onPlay)
-                    .padding(start = 14.dp, end = 24.dp, top = 14.dp, bottom = 14.dp),
+                    .padding(end = 24.dp, top = 14.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -368,11 +355,11 @@ private fun AnswerCard(
             }
             Spacer(Modifier.height(24.dp))
         }
-        Text(from, style = HeartType.gaegu(32f, bold = false, spacing = -0.04f).copy(lineHeight = 40.sp), color = c.textTertiary, maxLines = 1)
+        Text(from, style = HeartType.gaegu(32f, bold = false, spacing = -0.04f).copy(lineHeight = 40.sp), color = c.textSecondary, maxLines = 1)
     }
 }
 
-/** My card before I answer: the 06 voice pill and typed sentence, then 답 남기기. */
+/** My card before I answer: the typed sentence and the 06 voice pill, then 답 남기기. */
 @Composable
 private fun AnswerInputCard(
     editing: Boolean,
@@ -383,8 +370,9 @@ private fun AnswerInputCard(
     onSubmit: () -> Unit,
 ) {
     val c = Heart.colors
-    AnswerFrame("나의 답", MyTape, MyCardAt, lines = false) {
-        Spacer(Modifier.height(30.dp))
+    AnswerFrame(MyTape, MyCardAt, lines = false) {
+        // the first line sits where an answer starts on the other card
+        Spacer(Modifier.height(90.dp))
         val fixed = !editing && AnswerDraft.fixes.isNotEmpty()
         Text(if (fixed) FixHint else "말로 남기거나 글로 써요", style = HeartType.Label, color = c.textSecondary, maxLines = 2)
         Spacer(Modifier.height(14.dp))
@@ -397,15 +385,15 @@ private fun AnswerInputCard(
         VoicePill(AnswerDraft.voice, playback, compact = true)
         ErrorLine(error)
         Spacer(Modifier.weight(1f))
-        PrimaryButton(if (busy) "남기는 중" else "답 남기기", Modifier.fillMaxWidth(), onSubmit.takeUnless { busy })
+        PrimaryButton(if (busy) "남기는 중" else "답 남기기", Modifier.fillMaxWidth(), onClick = onSubmit.takeUnless { busy })
     }
 }
 
 /** The partner's card lying face down until both answered. */
 @Composable
-private fun HiddenCard(title: String, line: String) {
+private fun HiddenCard(line: String) {
     val c = Heart.colors
-    AnswerFrame(title, PartnerTape, PartnerCardAt, lines = false) {
+    AnswerFrame(PartnerTape, PartnerCardAt, lines = false) {
         Spacer(Modifier.weight(1f))
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
             FigmaSvg("s18_lock", Modifier.size(56.dp))

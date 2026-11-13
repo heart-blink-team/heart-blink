@@ -33,8 +33,6 @@ import kr.heartblink.car.ui.theme.HeartType
 @Composable
 fun HomeScreen(nav: Nav, v: CoupleView = CoupleView.Demo) {
     val lit = if (v.partnerDriving) blinkTwice() else 0f
-    val me = v.meName
-    val partner = v.partnerName
     // the dot on 오늘의 질문 shows while the current question waits for my answer
     val newQuestion = if (Session.live) Session.question?.let { it.mine == null } ?: false else true
     HeartWindow(Tab.Home, nav, newQuestion = newQuestion) {
@@ -47,7 +45,7 @@ fun HomeScreen(nav: Nav, v: CoupleView = CoupleView.Demo) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("$me${andParticle(me)} $partner${subjectParticle(partner)} 함께한 지", style = HeartType.Label, color = Heart.colors.textSecondary)
+            Text("함께한 지", style = HeartType.Label, color = Heart.colors.textSecondary)
             Text("D+${v.days}", style = HeartType.HeartDisplay, color = Heart.colors.textPrimary)
         }
     }

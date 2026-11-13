@@ -1,7 +1,5 @@
 package kr.heartblink.car.ui.screen
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,13 +10,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.HeartCar
@@ -47,14 +43,11 @@ fun DrivingLockScreen(nav: Nav, me: String = "후니", partner: String = "여니
         HeartCar(partner, Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp))
         FigmaSvg("heart_signal", Modifier.offset(595.dp, 330.dp).size(492.dp))
 
-        val pill = RoundedCornerShape(999.dp)
+        // Lock notice; the status line says what waits for parking
         Column(
             Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = 170.dp)
-                .clip(pill)
-                .background(c.bgCard)
-                .border(2.dp, c.line, pill)
                 .padding(horizontal = 40.dp, vertical = 26.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -63,7 +56,6 @@ fun DrivingLockScreen(nav: Nav, me: String = "후니", partner: String = "여니
                 FigmaSvg("s041_lock", Modifier.size(34.dp))
                 Text("주행 중에는 소리로만 알려 드려요", style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
             }
-            Text("메시지와 기록은 주차하면 다시 볼 수 있어요. 오늘의 질문은 목소리로 답할 수 있어요", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
             if (status != null) Text(status, style = HeartType.BodyStrong, color = c.pinkDeep, maxLines = 1)
         }
 
@@ -71,8 +63,6 @@ fun DrivingLockScreen(nav: Nav, me: String = "후니", partner: String = "여니
             Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = 860.dp)
-                .clip(pill)
-                .background(c.pinkLight)
                 .padding(start = 20.dp, end = 22.dp, top = 10.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,

@@ -229,7 +229,7 @@ internal fun rememberStartRecording(draft: VoiceDraft): () -> Unit {
 
 /**
  * The voice pill of 06, live: 녹음하기, then 녹음 중 with a timer and 멈추기, then play, length and 다시 녹음.
- * [compact] fits the 412 px column of a 05 answer card (shorter waveform, round re-record button).
+ * [compact] fits the 412 px column of a 05 answer card (shorter waveform, the mic alone to record again).
  */
 @Composable
 internal fun VoicePill(draft: VoiceDraft, playback: VoicePlayback, compact: Boolean, modifier: Modifier = Modifier) {
@@ -276,7 +276,7 @@ internal fun VoicePill(draft: VoiceDraft, playback: VoicePlayback, compact: Bool
                 SmallPill("멈추기", null, icon = !compact)
             }
             rec == null -> {
-                MicCircle(52.dp)
+                RecordButton()
                 Text("눌러서 녹음하기", style = HeartType.BodyStrong, color = c.textSecondary, maxLines = 1)
             }
             else -> {
@@ -291,29 +291,37 @@ internal fun VoicePill(draft: VoiceDraft, playback: VoicePlayback, compact: Bool
                     playback.stop()
                     start()
                 }
-                if (compact) Box(Modifier.tap(again)) { MicCircle(48.dp) } else SmallPill("다시 녹음", again)
+                // the round card leaves room for the mic alone: no circle behind it
+                if (compact) Box(Modifier.size(48.dp).tap(again), contentAlignment = Alignment.Center) { Mic(28.dp) } else SmallPill("다시 녹음", again)
             }
         }
     }
 }
 
+/** The duotone mic of the voice pill. */
 @Composable
-private fun MicCircle(size: Dp) {
-    Box(Modifier.size(size).clip(CircleShape).background(Heart.colors.pinkLight), contentAlignment = Alignment.Center) {
-        Layered(Modifier.size(24.dp)) { svg("s06_mic", Inset.pct(10.94f, 21.88f), Inset.pct(5.2f, 7.22f)) }
+private fun Mic(size: Dp) {
+    Layered(Modifier.size(size)) { svg("s06_mic", Inset.pct(10.94f, 21.88f), Inset.pct(5.2f, 7.22f)) }
+}
+
+/** Start of a recording: a solid pink circle with a white mic, the same size and pink as the play button. */
+@Composable
+private fun RecordButton() {
+    Box(Modifier.size(52.dp).clip(CircleShape).background(Heart.colors.pinkAccent), contentAlignment = Alignment.Center) {
+        Layered(Modifier.size(26.dp)) { svg("s06_mic", Inset.pct(10.94f, 21.88f), Inset.pct(5.2f, 7.22f), Modifier.tint(Color.White)) }
     }
 }
 
+/** A text action of the pill (멈추기, 다시 녹음): the mic and a word, no fill behind. */
 @Composable
 private fun SmallPill(text: String, onClick: (() -> Unit)?, icon: Boolean = true) {
     val c = Heart.colors
-    val pill = RoundedCornerShape(999.dp)
     Row(
-        Modifier.clip(pill).background(c.pinkLight).tap(onClick).padding(start = if (icon) 16.dp else 18.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.tap(onClick).padding(start = if (icon) 16.dp else 18.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon) Layered(Modifier.size(24.dp)) { svg("s06_mic", Inset.pct(10.94f, 21.88f), Inset.pct(5.2f, 7.22f)) }
+        if (icon) Mic(24.dp)
         Text(text, style = HeartType.Label, color = c.textPrimary, maxLines = 1)
     }
 }
