@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -166,8 +165,8 @@ private fun TimeRangeSheet(close: () -> Unit) {
             Spacer(Modifier.weight(1f))
             SecondaryButton("취소", Modifier.width(200.dp), close)
             PrimaryButton(
-                "확인", Modifier.width(260.dp).alpha(if (same) 0.45f else 1f),
-                if (same) null else ({
+                "확인", Modifier.width(260.dp), enabled = !same,
+                onClick = if (same) null else ({
                     MessageDraft.customStart = start
                     MessageDraft.customEnd = end
                     MessageDraft.opensFrom = if (day == 0) null else today.plus(day, DateTimeUnit.DAY).atStartOfDayIn(Korea)

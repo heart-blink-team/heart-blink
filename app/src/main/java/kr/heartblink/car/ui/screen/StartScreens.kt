@@ -51,10 +51,7 @@ import kr.heartblink.car.ui.component.HeartCar
 import kr.heartblink.car.ui.component.HeartField
 import kr.heartblink.car.ui.component.PrimaryButton
 import kr.heartblink.car.ui.component.SecondaryButton
-import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
-import kr.heartblink.car.ui.component.innerShadow
-import kr.heartblink.car.ui.component.outerShadow
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.Heart
 import kr.heartblink.car.ui.theme.HeartType
@@ -76,9 +73,6 @@ val startScreens: Map<String, @Composable (Nav) -> Unit> = linkedMapOf<String, @
 /** Longest nickname that still fits the plate of [HeartCar]. */
 private const val NicknameMax = 5
 
-/** Inner light of the small pink boxes next to a field (same as the field box). */
-private val FieldInner = arrayOf(Shadow(-2f, -2f, 6f, Color(0xE6FFFFFF)), Shadow(3f, 4f, 8f, Color(0x0D292124)))
-
 /** Typing area inside a [HeartField] box, styled like the field value. */
 @Composable
 internal fun StartFieldInput(value: String, onValueChange: (String) -> Unit) {
@@ -93,26 +87,32 @@ internal fun StartFieldInput(value: String, onValueChange: (String) -> Unit) {
     )
 }
 
-/** Round avatar with the first letter of a name in Gaegu. */
+/** Round avatar with the first letter of a name in Gaegu; [border] draws a hairline ring in the line color. */
 @Composable
-internal fun StartAvatar(letter: String, size: Dp, fill: Color) {
-    Box(Modifier.size(size).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+internal fun StartAvatar(letter: String, size: Dp, fill: Color, border: Dp = 0.dp) {
+    Box(
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(fill)
+            .then(if (border > 0.dp) Modifier.border(border, Heart.colors.line, CircleShape) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(letter, style = HeartType.gaegu(44f), color = Heart.colors.textPrimary, maxLines = 1)
     }
 }
 
-/** The white 1000 x 860 card of screens 01-1, 02 and 03. */
+/** The flat white card of screens 01-1, 02 and 03, 1000 wide; [height] null lets it hug the content. */
 @Composable
-private fun ConnectCard(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun ConnectCard(modifier: Modifier, height: Dp? = 860.dp, content: @Composable ColumnScope.() -> Unit) {
     val c = Heart.colors
     val shape = RoundedCornerShape(40.dp)
     Column(
         modifier
-            .size(1000.dp, 860.dp)
-            .outerShadow(shape, Shadow(0f, 18f, 40f, Color(0x12292124)))
+            .width(1000.dp)
+            .then(if (height != null) Modifier.height(height) else Modifier)
             .clip(shape)
             .background(c.bgCard)
-            .innerShadow(shape, Shadow(6f, 6f, 12f, Color(0xD9FFFFFF)), Shadow(-6f, -8f, 16f, Color(0x0D292124)))
             .border(2.dp, c.line, shape)
             .padding(horizontal = 56.dp, vertical = 40.dp),
         content = content,
@@ -152,25 +152,20 @@ internal fun ErrorLine(text: String?) {
     }
 }
 
-/** 260 x 84 pink box next to a field: a status, or a button when [raised]. */
+/** 260 x 84 flat box next to a field: a pink button when [primary], otherwise a status on the light fill. */
 @Composable
-private fun SideBox(text: String, raised: Boolean, onClick: (() -> Unit)? = null) {
+private fun SideBox(text: String, primary: Boolean, onClick: (() -> Unit)? = null) {
     val c = Heart.colors
     val small = RoundedCornerShape(20.dp)
     Box(
         Modifier
             .size(260.dp, 84.dp)
-            .then(if (raised) Modifier.outerShadow(small, Shadow(0f, 10f, 22f, Color(0x24292124))) else Modifier)
             .clip(small)
-            .background(if (raised) c.pinkAccent else c.pinkLight)
-            .then(
-                if (raised) Modifier.innerShadow(small, Shadow(5f, 5f, 10f, Color(0x59FFFFFF)), Shadow(-5f, -7f, 14f, Color(0x21292124)))
-                else Modifier.innerShadow(small, *FieldInner),
-            )
+            .background(if (primary) c.pinkAccent else c.pinkLight)
             .tap(onClick)
             .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = HeartType.BodyStrong, color = if (raised) c.textOnAccent else c.pinkDeep, maxLines = 1) }
+    ) { Text(text, style = HeartType.BodyStrong, color = if (primary) c.textOnAccent else c.pinkDeep, maxLines = 1) }
 }
 
 /** 01 첫 로그인 (내 정보 등록): name and car number only; the plate stays empty until the partner names it. */
@@ -182,23 +177,16 @@ fun FirstLoginScreen(nav: Nav) {
     var name by remember { mutableStateOf(if (Session.live) Session.me?.name.orEmpty() else v.meName) }
     var plate by remember { mutableStateOf(v.myPlate) }
     val (action, run) = rememberAction()
-    val shape = RoundedCornerShape(40.dp)
     HeartWindow(Tab.Home, nav) {
         HeartCar(if (editing) v.myNickname else "", Modifier.offset((-270).dp, 380.dp).size(720.dp, 558.dp))
         Column(
             Modifier
                 .offset(640.dp, 192.dp)
                 .size(1002.dp, 860.dp)
-                .outerShadow(shape, Shadow(0f, 18f, 44f, Color(0x0D292124)))
-                .clip(shape)
-                .background(c.pinkSoft)
-                .innerShadow(shape, Shadow(0f, -6f, 16f, Color(0x08292124)), Shadow(0f, 6f, 14f, Color(0xB3FFFFFF)))
                 .padding(start = 64.dp, end = 64.dp, top = 56.dp, bottom = 48.dp),
         ) {
             Text("내 정보 등록", style = HeartType.HeartTitle, color = c.textPrimary)
-            Spacer(Modifier.height(10.dp))
-            Text("연결한 연인이 내 차 번호판에 애칭을 지어 줘요", style = HeartType.Body, color = c.textSecondary)
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(36.dp))
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                 HeartField("이름", Modifier.fillMaxWidth()) { StartFieldInput(name) { name = it } }
                 HeartField("차량 번호", Modifier.fillMaxWidth()) { StartFieldInput(plate) { plate = it } }
@@ -252,11 +240,11 @@ fun ConnectSendScreen(nav: Nav) {
                     HeartField("상대 차량 번호", plate.ifEmpty { Session.view.partnerPlate }, Modifier.weight(1f))
                 }
                 when (step) {
-                    0 -> SideBox(if (action.busy) "보내는 중" else "요청 보내기", raised = true) {
+                    0 -> SideBox(if (action.busy) "보내는 중" else "요청 보내기", primary = true) {
                         if (!Session.live) demoStep = 1 else run({ Session.requestConnection(plate) }) {}
                     }
-                    1 -> SideBox("수락 기다리는 중", raised = false, onClick = if (Session.live) null else ({ demoStep = 2 }))
-                    else -> SideBox("요청 수락됨", raised = false)
+                    1 -> SideBox("수락 기다리는 중", primary = false, onClick = if (Session.live) null else ({ demoStep = 2 }))
+                    else -> SideBox("요청 수락됨", primary = false)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -289,38 +277,30 @@ fun ConnectRequestScreen(nav: Nav) {
     val (action, run) = rememberAction()
     HeartWindow(Tab.Home, nav) {
         HeartCar(nickname, Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp))
-        ConnectCard(Modifier.offset(100.dp, 182.dp)) {
+        ConnectCard(Modifier.offset(100.dp, 182.dp), height = null) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 FigmaSvg("s02_heart", Modifier.size(44.dp))
                 Text("연결 요청이 왔어요", style = HeartType.HeartTitle, color = c.textPrimary)
             }
-            Spacer(Modifier.height(10.dp))
-            Text("${requester}님이 하트깜빡이로 연결하자고 해요", style = HeartType.Body, color = c.textSecondary)
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(36.dp))
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(c.pinkLight)
-                    .padding(horizontal = 24.dp, vertical = 22.dp),
+                Modifier.fillMaxWidth().padding(vertical = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                StartAvatar(requester.take(1), 80.dp, c.bgCard)
+                StartAvatar(requester.take(1), 80.dp, c.bgCard, border = 2.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(requester, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
                     Text("차량 번호 $requesterPlate", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
                 }
-                Text(sinceText(Session.couple?.createdAt), style = HeartType.Label, color = c.textTertiary, maxLines = 1)
+                Text(sinceText(Session.couple?.createdAt), style = HeartType.Label, color = c.textSecondary, maxLines = 1)
             }
             Spacer(Modifier.height(28.dp))
             HeartField("${requester}님 차 번호판에 띄울 애칭", Modifier.fillMaxWidth()) {
                 StartFieldInput(nickname) { if (it.length <= NicknameMax) nickname = it }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("수락하면 ${requester}님 화면에 연결됐다고 알려 줘요. 애칭은 나중에 바꿀 수 있어요", style = HeartType.Label, color = c.textTertiary)
             ErrorLine(action.error)
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(56.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 SecondaryButton("거절", Modifier.width(240.dp), onClick = {
                     if (!Session.live) nav.back() else run({ Session.respond(false, null) }) {}
@@ -378,7 +358,6 @@ fun ConnectDoneScreen(nav: Nav) {
     val count = remember { Animatable(0f) }
     LaunchedEffect(days) { count.animateTo(days.toFloat(), tween(900, easing = LinearOutSlowInEasing)) }
     val (action, run) = rememberAction()
-    val small = RoundedCornerShape(20.dp)
     HeartWindow(Tab.Home, nav) {
         HeartCar(nickname, Modifier.offset(1232.dp, 380.dp).size(720.dp, 558.dp))
         ConnectCard(Modifier.offset(100.dp, 182.dp)) {
@@ -386,34 +365,19 @@ fun ConnectDoneScreen(nav: Nav) {
                 FigmaSvg("s03_check", Modifier.size(40.dp))
                 Text("${partner}님과 연결되었습니다", style = HeartType.HeartTitle, color = c.textPrimary)
             }
-            Spacer(Modifier.height(10.dp))
-            Text("${partner}님 차에서 연결 요청을 수락했어요", style = HeartType.Body, color = c.textSecondary)
-            Spacer(Modifier.height(22.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
-                HeartField("상대 차량 번호", v.partnerPlate, Modifier.weight(1f))
-                SideBox("요청 수락됨", raised = false)
-            }
+            Spacer(Modifier.height(36.dp))
+            HeartField("상대 차량 번호", v.partnerPlate, Modifier.fillMaxWidth())
             Spacer(Modifier.height(18.dp))
             HeartField("${partner}님 차 번호판에 띄울 애칭", Modifier.fillMaxWidth()) {
                 StartFieldInput(nickname) { if (it.length <= NicknameMax) nickname = it }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("내 화면의 ${partner}님 차에 보여요. ${partner}님도 내 차 애칭을 지어 줘요", style = HeartType.Label, color = c.textTertiary)
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
                 HeartField("처음 만난 날", Modifier.weight(1f)) { StartFieldInput(dayText) { dayText = it } }
-                Box(
-                    Modifier
-                        .size(260.dp, 84.dp)
-                        .outerShadow(small, Shadow(0f, 10f, 22f, Color(0x24292124)))
-                        .clip(small)
-                        .background(c.pinkLight)
-                        .innerShadow(small, Shadow(5f, 5f, 10f, Color(0x59FFFFFF)), Shadow(-5f, -7f, 14f, Color(0x21292124))),
-                    contentAlignment = Alignment.Center,
-                ) { Text("D+${count.value.roundToInt()}", style = HeartType.HeartTitle, color = c.pinkDeep, maxLines = 1) }
+                Box(Modifier.size(260.dp, 84.dp), contentAlignment = Alignment.Center) {
+                    Text("D+${count.value.roundToInt()}", style = HeartType.HeartTitle, color = c.pinkDeep, maxLines = 1)
+                }
             }
-            Spacer(Modifier.height(14.dp))
-            Text("두 사람 화면에 같은 날짜로 보여요", style = HeartType.Label, color = c.textTertiary)
             ErrorLine(action.error)
             Spacer(Modifier.weight(1f))
             PrimaryButton(if (action.busy) "저장하는 중" else if (editing) "저장하기" else "인증하고 시작하기", Modifier.fillMaxWidth(), onClick = {

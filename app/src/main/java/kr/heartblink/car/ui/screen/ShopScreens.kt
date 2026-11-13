@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,10 +42,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.PrimaryButton
-import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
-import kr.heartblink.car.ui.component.innerShadow
-import kr.heartblink.car.ui.component.outerShadow
+import kr.heartblink.car.ui.component.UnderlineTabs
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.Heart
 import kr.heartblink.car.ui.theme.HeartType
@@ -131,8 +128,10 @@ private enum class ShopTab(val label: String, val count: Int, val screen: String
 private class ShopItem(val name: String, val price: String?, val thumb: @Composable BoxScope.() -> Unit)
 
 private val PillShape = RoundedCornerShape(999.dp)
-private val PanelShape = RoundedCornerShape(40.dp)
-private val CardShape = RoundedCornerShape(26.dp)
+private val PreviewShape = RoundedCornerShape(18.dp)
+
+/** Fill behind the picked thumbnail (Figma #FCE6ED), under the 3 px pink border. */
+private val PickedFill = Color(0xFFFCE6ED)
 
 // Motion 01 Stagger Fade Up: rows rise one by one, 0.08 s apart, 0.5 s each.
 private val StaggerEase = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
@@ -166,7 +165,7 @@ private fun Modifier.pin(w: Dp, h: Dp, y: Dp, x: Dp? = null) = layout { m, c ->
     layout(c.maxWidth, 0) { p.place(px, y.roundToPx()) }
 }
 
-/** The shop window: header, a panel with title, tabs, couple subscription and the product grid, toolbar. */
+/** The shop window: header, then title and tabs, couple subscription and the product grid on the page, toolbar. */
 @Composable
 private fun ShopWindow(
     nav: Nav,
@@ -179,28 +178,29 @@ private fun ShopWindow(
     val gridRows = items.chunked(columns)
     val rows = rememberStagger(2 + gridRows.size)
     var selected by remember { mutableIntStateOf(0) }
+    val tabs = ShopTab.entries
     HeartWindow(Tab.Home, nav) {
         Column(
             Modifier
-                .padding(start = 40.dp, end = 40.dp, top = 160.dp, bottom = 150.dp)
                 .fillMaxSize()
-                .outerShadow(PanelShape, Shadow(0f, 18f, 44f, Color(0x0D292124)))
-                .clip(PanelShape)
-                .background(c.pinkSoft)
-                .innerShadow(PanelShape, Shadow(0f, -6f, 16f, Color(0x08292124)), Shadow(0f, 6f, 14f, Color(0xB3FFFFFF)))
-                .padding(horizontal = 44.dp, vertical = 36.dp),
+                .padding(start = 84.dp, end = 84.dp, top = 196.dp, bottom = 186.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth().rise(rows[0]),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("하트 상점", style = HeartType.HeartTitle, color = c.textPrimary, maxLines = 1)
                     FigmaSvg("shop_doodle_heart", Modifier.size(36.dp))
                 }
-                ShopTabs(active) { tab -> tab.screen?.let { if (tab != active) nav.go(it) } }
+                UnderlineTabs(
+                    tabs.map { it.label },
+                    active.ordinal,
+                    counts = tabs.map { it.count.toString() },
+                    gap = 32.dp,
+                ) { i -> tabs[i].screen?.let { if (tabs[i] != active) nav.go(it) } }
             }
             CoupleSubscription(Modifier.rise(rows[1]))
             Column(
@@ -215,41 +215,6 @@ private fun ShopWindow(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShopTabs(active: ShopTab, onTab: (ShopTab) -> Unit) {
-    val c = Heart.colors
-    Row(
-        Modifier
-            .clip(PillShape)
-            .background(c.bgCard)
-            .innerShadow(PillShape, Shadow(-2f, -2f, 6f, Color(0xE6FFFFFF)), Shadow(3f, 4f, 8f, Color(0x0D292124)))
-            .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        ShopTab.entries.forEach { tab ->
-            val on = tab == active
-            Row(
-                Modifier
-                    .clip(PillShape)
-                    .then(if (on) Modifier.background(c.bgCard) else Modifier)
-                    .tap { onTab(tab) }
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    tab.label,
-                    style = if (on) HeartType.Headline else HeartType.BodyStrong,
-                    color = if (on) c.pinkDeep else c.textSecondary,
-                    maxLines = 1,
-                )
-                Text(tab.count.toString(), style = HeartType.Label, color = if (on) c.pinkDeep else c.textTertiary, maxLines = 1)
             }
         }
     }
@@ -274,7 +239,7 @@ private fun CoupleSubscription(modifier: Modifier = Modifier) {
         Column(Modifier.weight(1f).clipToBounds(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("커플 구독", style = HeartType.Headline, color = c.textPrimary, maxLines = 1, softWrap = false)
             Text(
-                "질문 테마팩, 메시지 무제한, 기록 무제한 저장. 한 명이 결제하면 둘 다 써요",
+                "질문 테마팩, 메시지, 기록 무제한. 둘이 함께 써요",
                 style = HeartType.Label, color = c.textSecondary, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
             )
         }
@@ -283,57 +248,51 @@ private fun CoupleSubscription(modifier: Modifier = Modifier) {
     }
 }
 
-/** The price pill, or "기본, 적용 중" on the free default. */
+/** The price as plain text, or a bold deep pink "적용 중" on the free default that is applied now. */
 @Composable
-private fun PricePill(price: String?, horizontal: Dp) {
+private fun PriceText(price: String?) {
     val c = Heart.colors
     val applied = price == null
-    Box(
-        Modifier
-            .clip(PillShape)
-            .background(if (applied) c.pinkLight else c.bgCard)
-            .border(2.dp, if (applied) c.pinkLight else c.pinkMid, PillShape)
-            .padding(horizontal = horizontal + 2.dp, vertical = 10.dp),
-    ) {
-        Text(price ?: "기본, 적용 중", style = HeartType.BodyStrong, color = if (applied) c.pinkDeep else c.textPrimary, maxLines = 1)
-    }
+    Text(
+        price ?: "적용 중",
+        style = HeartType.noto(28f, if (applied) 700 else 500, 1.45f),
+        color = if (applied) c.pinkDeep else c.textPrimary,
+        maxLines = 1,
+        modifier = Modifier.padding(vertical = 8.dp),
+    )
 }
 
+/** The thumbnail box; the picked one turns pink with a 3 px pink border drawn over the picture. */
 @Composable
-private fun Preview(height: Dp, content: @Composable BoxScope.() -> Unit) {
+private fun Preview(height: Dp, picked: Boolean, content: @Composable BoxScope.() -> Unit) {
+    val c = Heart.colors
     Box(
-        Modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(18.dp)).background(Heart.colors.pinkLight),
+        Modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(PreviewShape)
+            .background(if (picked) PickedFill else c.pinkLight)
+            .then(if (picked) Modifier.border(3.dp, c.pinkAccent, PreviewShape) else Modifier),
         content = content,
     )
 }
 
-private fun Modifier.cardFrame(width: Dp, selected: Boolean, accent: Color, line: Color, card: Color, onTap: () -> Unit) =
-    size(width, 279.dp)
-        .clip(CardShape)
-        .background(card)
-        .border(if (selected) 3.dp else 2.dp, if (selected) accent else line, CardShape)
-        .tap(onTap)
+/** A product on the page: only the thumbnail is filled, the name and price sit on the page under it. */
+private fun Modifier.cardFrame(width: Dp, onTap: () -> Unit) = size(width, 279.dp).tap(onTap)
 
 /** 21 card, 365 x 279: preview, name, price stacked in the middle. */
 @Composable
 private fun SmallCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
     val c = Heart.colors
-    val bw = if (selected) 3.dp else 2.dp
-    Box(Modifier.cardFrame(365.dp, selected, c.pinkAccent, c.line, c.bgCard, onTap)) {
-        // The Figma stack is 0.8 px taller than the card, so it overflows at the bottom instead of squeezing.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .wrapContentHeight(Alignment.Top, unbounded = true)
-                .padding(horizontal = 20.dp + bw, vertical = 14.dp + bw),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Preview(130.dp, item.thumb)
-            Spacer(Modifier.height(0.dp))
-            Text(item.name, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-            PricePill(item.price, 22.dp)
-        }
+    Column(
+        Modifier.cardFrame(365.dp, onTap).padding(bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Preview(130.dp, selected, item.thumb)
+        Spacer(Modifier.weight(1f))
+        Text(item.name, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
+        PriceText(item.price)
     }
 }
 
@@ -341,14 +300,11 @@ private fun SmallCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
 @Composable
 private fun WideCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
     val c = Heart.colors
-    val bw = if (selected) 3.dp else 2.dp
     Column(
-        Modifier
-            .cardFrame(492.dp, selected, c.pinkAccent, c.line, c.bgCard, onTap)
-            .padding(horizontal = 20.dp + bw, vertical = 16.dp + bw),
+        Modifier.cardFrame(492.dp, onTap).padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Preview(150.dp, item.thumb)
+        Preview(150.dp, selected, item.thumb)
         Spacer(Modifier.weight(1f))
         Row(
             Modifier.fillMaxWidth(),
@@ -356,7 +312,7 @@ private fun WideCard(item: ShopItem, selected: Boolean, onTap: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(item.name, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-            PricePill(item.price, 20.dp)
+            PriceText(item.price)
         }
     }
 }

@@ -36,18 +36,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.ui.platform.LocalDensity
@@ -78,10 +82,9 @@ import kr.heartblink.car.ui.component.Inset
 import kr.heartblink.car.ui.component.Layered
 import kr.heartblink.car.ui.component.PrimaryButton
 import kr.heartblink.car.ui.component.SecondaryButton
-import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
-import kr.heartblink.car.ui.component.innerShadow
-import kr.heartblink.car.ui.component.outerShadow
+import kr.heartblink.car.ui.component.TextAction
+import kr.heartblink.car.ui.component.UnderlineTabs
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.Heart
 import kr.heartblink.car.ui.theme.HeartType
@@ -99,13 +102,16 @@ internal class ConditionOption(
     val bleed: Inset = Inset.Zero,
 )
 
-/** The two condition groups that have a detail picker in Figma (06 차량 기능, 07 시간대). */
-internal enum class ConditionGroup(val screen: String, val head: String, val data: DataGroup) {
-    Vehicle("06", "연인이 이 기능을 쓰면 열려요", DataGroup.Vehicle),
-    Time("07", "이 시간대에 열려요", DataGroup.Time),
-    FirstStart("06-2", "그날 첫 시동을 걸면 열려요", DataGroup.FirstStart),
-    Arrival("06-3", "이 순간에 열려요", DataGroup.Arrival),
-    Place("06-4", "이 장소 근처에 가면 열려요", DataGroup.Place);
+/**
+ * The condition groups, one underline tab each (06 차량 기능 and 07 시간대 are in Figma).
+ * [tab] is the tab's word, [head] the line over the group's options.
+ */
+internal enum class ConditionGroup(val screen: String, val tab: String, val head: String, val data: DataGroup) {
+    Vehicle("06", "차량 기능", "상대가 켜는 순간", DataGroup.Vehicle),
+    Time("07", "시간대", "열리는 시간대", DataGroup.Time),
+    FirstStart("06-2", "첫 시동", "상대가 그날 처음 시동을 걸 때", DataGroup.FirstStart),
+    Arrival("06-3", "도착", "상대가 도착하는 순간", DataGroup.Arrival),
+    Place("06-4", "장소", "열리는 장소", DataGroup.Place);
 
     val options: List<ConditionOption>
         get() = when (this) {
@@ -138,6 +144,9 @@ internal enum class ConditionGroup(val screen: String, val head: String, val dat
     fun option(label: String?): ConditionOption = options.firstOrNull { it.label == label } ?: options.first()
 
     companion object {
+        /** The tabs from left to right. */
+        val tabs: List<ConditionGroup> = listOf(Place, Vehicle, FirstStart, Arrival, Time)
+
         /** The option a stored condition value stands for, in either group. */
         fun optionFor(value: String): ConditionOption? = entries.firstNotNullOfOrNull { g -> g.options.firstOrNull { it.value == value } }
 
@@ -241,14 +250,13 @@ internal object MessageDraft {
     }
 }
 
-private val CardInner = arrayOf(Shadow(6f, 6f, 12f, Color(0xD9FFFFFF)), Shadow(-6f, -8f, 16f, Color(0x0D292124)))
-private val AccentInner = arrayOf(Shadow(5f, 5f, 10f, Color(0x59FFFFFF)), Shadow(-5f, -7f, 14f, Color(0x21292124)))
-private val TileDrop = Shadow(0f, 10f, 22f, Color(0x14292124))
-private val TileDropOn = Shadow(0f, 10f, 22f, Color(0x24292124))
-
-/** Stroke color of the unselected option icons in Figma. */
-private val OptionGray = Color(0xFF7D6B72)
+/** Fill of a picked option: the accent pink at 12%. */
+internal val PickedOptionFill = Color(0x1FE9557F)
 private val KeyboardBg = Color(0xFFF3EFEA)
+
+/** Window space under the panel: the toolbar and a 78 px margin; 08 keeps more for the toast. */
+private val PanelBottom = 190.dp
+private val SentPanelBottom = 278.dp
 
 // ---------------------------------------------------------------- screens
 
@@ -351,16 +359,15 @@ internal fun MessageEditScreen(nav: Nav) {
     }
 }
 
-/** 08 메시지 남긴 직후: hearts burst from the send button, then the toast stays. */
+/** 08 메시지 남긴 직후: hearts burst from the dimmed 남겼어요 button, then the toast stays above the toolbar. */
 @Composable
 internal fun MessageSentScreen(nav: Nav) {
     val group = MessageDraft.group
     val text = MessageDraft.text(group)
     val option = MessageDraft.option[group].orEmpty()
     val partner = Session.view.partnerName
-    // "12월 24일 (목)부터 " when a later start was picked
-    val quote = (if (text.isBlank()) "음성 메시지를 남겼어요." else "\"$text\"${objectParticle(text)} 남겼어요.") +
-        MessageDraft.opensFrom?.let { " ${koreanStart(it)}" }.orEmpty()
+    // the start time stays on the screen above, so the toast only says when it opens
+    val quote = "남겼어요."
     val toast = when (group) {
         ConditionGroup.Vehicle -> {
             val verb = if (option == "창문 열림") "창문을 열면" else "$option${objectParticle(option)} 켜면"
@@ -381,9 +388,12 @@ internal fun MessageSentScreen(nav: Nav) {
             onEdit = if (Session.live) null else ({ nav.go("06-1") }),
             onCancel = { nav.back() },
             voice = { if (Session.live) VoicePill(MessageDraft.voice, playback, compact = false) else RecordedVoice() },
+            sent = true,
+            bottom = SentPanelBottom,
         )
         HeartBurst()
-        Toast(toast, Modifier.align(Alignment.TopCenter).offset(y = 999.dp))
+        // 24 px above the 112 px toolbar
+        Toast(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = 136.dp))
     }
 }
 
@@ -403,23 +413,20 @@ private fun MessagePanel(
     voice: @Composable () -> Unit = { RecordedVoice() },
     error: String? = null,
     busy: Boolean = false,
+    sent: Boolean = false,
+    bottom: Dp = PanelBottom,
 ) {
     val c = Heart.colors
-    val shape = RoundedCornerShape(40.dp)
+    // two columns straight on the page, split by one hairline: no panel card behind them
     Row(
         Modifier
             .fillMaxSize()
-            .padding(start = 40.dp, end = 40.dp, top = 160.dp, bottom = 150.dp)
-            .outerShadow(shape, Shadow(0f, 18f, 44f, Color(0x0D292124)))
-            .clip(shape)
-            .background(c.pinkSoft)
-            .innerShadow(shape, Shadow(0f, -6f, 16f, Color(0x08292124)), Shadow(0f, 6f, 14f, Color(0xB3FFFFFF)))
-            .padding(horizontal = 48.dp, vertical = 40.dp),
+            .padding(start = 88.dp, end = 88.dp, top = 200.dp, bottom = bottom),
         horizontalArrangement = Arrangement.spacedBy(40.dp),
     ) {
         Conditions(group, animate, onGroup, onOption, Modifier.weight(1f).fillMaxHeight())
         Box(Modifier.width(3.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(c.pinkMid))
-        MessageColumn(transcript, editing, onEdit, onCancel, onSend, voice, error, busy, Modifier.weight(1f).fillMaxHeight())
+        MessageColumn(transcript, editing, onEdit, onCancel, onSend, voice, error, busy, sent, Modifier.weight(1f).fillMaxHeight())
     }
 }
 
@@ -432,146 +439,35 @@ private fun Conditions(
     modifier: Modifier,
 ) {
     val c = Heart.colors
-    val vehicleOn = group == ConditionGroup.Vehicle
-    val timeOn = group == ConditionGroup.Time
+    val tabs = ConditionGroup.tabs
     Column(modifier) {
         Text("메시지가 열리는 조건", style = HeartType.HeartTitle, color = c.textPrimary, maxLines = 1)
         Spacer(Modifier.height(6.dp))
-        Text("하나를 골라요. 그 순간이 오면 메시지가 열려요", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-        Spacer(Modifier.height(22.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            PlaceTile(
-                group == ConditionGroup.Place, onGroup?.let { { it(ConditionGroup.Place) } },
-                Modifier.width(212.dp).height(352.dp).then(stagger(0, animate)),
+        // the groups as underline tabs standing on a hairline
+        Column(Modifier.fillMaxWidth()) {
+            UnderlineTabs(
+                tabs.map { it.tab }, tabs.indexOf(group),
+                onSelect = onGroup?.let { go -> { i: Int -> go(tabs[i]) } },
             )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CategoryTile(
-                        "차량 기능",
-                        if (vehicleOn) MessageDraft.option[ConditionGroup.Vehicle].orEmpty() else "와이퍼, 전조등 등",
-                        TileIcon("s07_icon_car_off", "s06_icon_car_on", Inset.pct(31.25f, 12.5f, 12.5f, 12.5f), Inset.pct(6.67f, 5f)),
-                        vehicleOn, animate, onGroup?.let { { it(ConditionGroup.Vehicle) } },
-                        Modifier.weight(1f).then(stagger(1, animate)),
-                    )
-                    CategoryTile(
-                        "첫 시동", "그날 처음 켤 때",
-                        TileIcon("s06_icon_ignition", null, Inset.pct(18.75f, 15.63f, 12.5f, 15.63f), Inset.pct(5.45f)),
-                        group == ConditionGroup.FirstStart, animate, onGroup?.let { { it(ConditionGroup.FirstStart) } },
-                        Modifier.weight(1f).then(stagger(2, animate)),
-                    )
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CategoryTile(
-                        "도착",
-                        if (group == ConditionGroup.Arrival) MessageDraft.option[ConditionGroup.Arrival].orEmpty() else "목적지, 주차",
-                        TileIcon("s06_icon_arrival", null, Inset.pct(12.5f, 25f, 9.38f, 25f), Inset.pct(4.8f, 7.5f)),
-                        group == ConditionGroup.Arrival, animate, onGroup?.let { { it(ConditionGroup.Arrival) } },
-                        Modifier.weight(1f).then(stagger(3, animate)),
-                    )
-                    CategoryTile(
-                        "시간대",
-                        when {
-                            !timeOn -> "새벽부터 밤까지"
-                            MessageDraft.option[ConditionGroup.Time] == CustomTime -> MessageDraft.customBand.spoken
-                            else -> MessageDraft.option[ConditionGroup.Time].orEmpty()
-                        },
-                        TileIcon("s06_icon_time_off", "s07_icon_time_on", Inset.pct(12.5f), Inset.pct(5f)),
-                        timeOn, animate, onGroup?.let { { it(ConditionGroup.Time) } },
-                        Modifier.weight(1f).then(stagger(4, animate)),
-                    )
-                }
-            }
+            Box(Modifier.fillMaxWidth().height(2.dp).background(c.line))
         }
         Spacer(Modifier.height(18.dp))
-        DetailCard(group, animate, onOption, Modifier.then(stagger(5, animate)))
-        // the custom range takes the room of the start time line
-        if (!(group == ConditionGroup.Time && MessageDraft.option[group] == CustomTime)) {
-            Spacer(Modifier.height(28.dp))
-            StartTime(editable = onOption != null)
-        }
-    }
-}
-
-/** Icon of a category tile; [on] is the pink variant shown when the tile is picked. */
-private class TileIcon(val off: String, val on: String?, val inset: Inset, val bleed: Inset)
-
-@Composable
-private fun PlaceTile(selected: Boolean, onClick: (() -> Unit)?, modifier: Modifier) {
-    val c = Heart.colors
-    val shape = RoundedCornerShape(26.dp)
-    Column(
-        modifier
-            .outerShadow(shape, TileDrop)
-            .clip(shape)
-            .background(c.bgCard)
-            .innerShadow(shape, *CardInner)
-            .border(if (selected) 3.dp else 2.dp, if (selected) c.pinkAccent else c.line, shape)
-            .tap(onClick)
-            .padding(start = 24.dp, end = 18.dp, top = 20.dp, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Layered(Modifier.size(40.dp)) { svg("s06_icon_place", Inset.pct(9.38f, 18.75f), Inset.pct(4.62f, 6f)) }
-        Text("장소", style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-        val name = PlaceDraft.place?.name?.takeIf { selected }
-        Text(
-            name ?: "지도에서 선택", style = HeartType.Label, color = if (name != null) c.pinkDeep else c.textSecondary,
-            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(10.dp))
-        // Map preview: the place where the map SDK goes.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(18.dp))
-                .background(c.pinkLight)
-                .dashedBorder(2.dp, c.pinkMid, 18.dp),
-            contentAlignment = Alignment.Center,
-        ) { FigmaSvg("s06_pin", Modifier.size(30.dp, 38.dp)) }
-    }
-}
-
-@Composable
-private fun CategoryTile(
-    title: String,
-    sub: String,
-    icon: TileIcon,
-    selected: Boolean,
-    animate: Boolean,
-    onClick: (() -> Unit)?,
-    modifier: Modifier,
-) {
-    val c = Heart.colors
-    val f = selectFraction(selected, animate)
-    val shape = RoundedCornerShape(26.dp)
-    val bw = if (selected) 3.dp else 2.dp
-    Column(
-        modifier
-            .height(170.dp)
-            .outerShadow(shape, if (selected) TileDropOn else TileDrop)
-            .clip(shape)
-            .background(c.bgCard)
-            .innerShadow(shape, *(if (selected) AccentInner else CardInner))
-            .border(bw, lerp(c.line, c.pinkAccent, f), shape)
-            .tap(onClick)
-            .padding(start = 22.dp + bw, end = 16.dp + bw, top = 20.dp + bw, bottom = 18.dp + bw),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Layered(Modifier.size(40.dp)) {
-            svg(icon.off, icon.inset, icon.bleed, Modifier.alpha(if (icon.on != null) 1f - f else 1f))
-            if (icon.on != null) svg(icon.on, icon.inset, icon.bleed, Modifier.alpha(f))
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
-            FitLine(sub, HeartType.Label, lerp(c.textSecondary, c.pinkDeep, f))
+        ConditionDetail(group, animate, onOption)
+        Spacer(Modifier.height(28.dp))
+        // the custom range takes the place of the start time line
+        val editable = onOption != null
+        if (group == ConditionGroup.Time && MessageDraft.option[group] == CustomTime) {
+            CustomTimeRange(editable, stagger(2, animate))
+        } else {
+            StartTime(editable, stagger(2, animate))
         }
     }
 }
 
 /**
  * One line that gets smaller, down to [minScale], when it is wider than its place instead of being cut off:
- * a picked time range ("오후 6시~다음 날 오후 5시 30분") is longer than the tile. Only the width is measured;
- * the line keeps its height so the tile does not move.
+ * a picked time range ("오후 6시~다음 날 오후 5시 30분") can be longer than its row. Only the width is measured;
+ * the line keeps its height so nothing under it moves.
  */
 @Composable
 private fun FitLine(text: String, style: TextStyle, color: Color, minScale: Float = 0.55f) {
@@ -588,131 +484,117 @@ private fun FitLine(text: String, style: TextStyle, color: Color, minScale: Floa
     }
 }
 
+/** The picked group: its line, then its options (the places for 장소, one line for 첫 시동). No card behind. */
 @Composable
-private fun DetailCard(group: ConditionGroup, animate: Boolean, onOption: ((String) -> Unit)?, modifier: Modifier) {
+private fun ConditionDetail(group: ConditionGroup, animate: Boolean, onOption: ((String) -> Unit)?) {
     val c = Heart.colors
-    val shape = RoundedCornerShape(28.dp)
     val shown = group.shownOptions()
     // a function the partner's car turned out not to have cannot stay picked
     LaunchedEffect(shown) {
         if (shown.none { it.label == MessageDraft.option[group] }) MessageDraft.option[group] = shown.first().label
     }
     val current = MessageDraft.option[group]
-    Column(
-        modifier
-            .fillMaxWidth()
-            .outerShadow(shape, TileDrop)
-            .clip(shape)
-            .background(c.bgCard)
-            .innerShadow(shape, *CardInner)
-            .padding(horizontal = 24.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(group.head, style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
-            if (group != ConditionGroup.FirstStart) Text("하나만 선택", style = HeartType.Label, color = c.textTertiary, maxLines = 1)
-        }
-        if (group == ConditionGroup.Place) {
-            PlaceDetail()
-        } else if (group == ConditionGroup.FirstStart) {
-            // nothing to pick: one line on when the day starts
-            Text(
-                "하루는 새벽 4시에 시작해요. 밤 12시가 지나도 새벽 4시 전이면 같은 날이에요",
-                style = HeartType.Body, color = c.textSecondary, modifier = Modifier.padding(vertical = 8.dp),
-            )
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                shown.forEach { opt ->
-                    // 07 writes each band's hours under its name; 주차 writes the place picked on the map
-                    val parking = opt.value == ConditionValue.PARKED
-                    val sub = when {
-                        group == ConditionGroup.Time && opt.label == CustomTime -> "고르기"
-                        group == ConditionGroup.Time -> TimeBand.of(opt.value)?.let { "${it.start.hour}~${it.end.hour}시" }
-                        parking -> PlaceDraft.parkAt?.let(::parkName) ?: "지도에서 고르기"
-                        else -> null
-                    }
-                    // 주차 opens the map at once when no place is picked yet, and again when tapped once more
-                    val click = onOption?.let {
-                        {
-                            val again = opt.label == current
-                            it(opt.label)
-                            if (parking && (again || PlaceDraft.parkAt == null)) PlaceDraft.onMap()
+    Column(Modifier.fillMaxWidth().padding(top = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Text(group.head, style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1, modifier = stagger(0, animate))
+        Box(Modifier.fillMaxWidth().then(stagger(1, animate))) {
+            when (group) {
+                ConditionGroup.Place -> PlaceDetail()
+                // nothing to pick: one line on when the day starts
+                ConditionGroup.FirstStart -> Text(
+                    "하루는 새벽 4시에 시작해요. 밤 12시가 지나도 새벽 4시 전이면 같은 날이에요",
+                    style = HeartType.Body, color = c.textSecondary,
+                )
+                else -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    shown.forEach { opt ->
+                        // 07 writes each band's hours under its name; 주차 writes the place picked on the map
+                        val parking = opt.value == ConditionValue.PARKED
+                        val sub = when {
+                            group == ConditionGroup.Time && opt.label == CustomTime -> "고르기"
+                            group == ConditionGroup.Time -> TimeBand.of(opt.value)?.let { "${it.start.hour}~${it.end.hour}시" }
+                            parking -> PlaceDraft.parkAt?.let(::parkName) ?: "지도에서 고르기"
+                            else -> null
                         }
+                        // 주차 opens the map at once when no place is picked yet, and again when tapped once more
+                        val click = onOption?.let {
+                            {
+                                val again = opt.label == current
+                                it(opt.label)
+                                if (parking && (again || PlaceDraft.parkAt == null)) PlaceDraft.onMap()
+                            }
+                        }
+                        OptionTile(opt, opt.label == current, animate, click, Modifier.weight(1f), sub)
                     }
-                    OptionTile(opt, opt.label == current, animate, click, Modifier.weight(1f), sub)
                 }
             }
-            if (group == ConditionGroup.Time && current == CustomTime) CustomTimeRange(editable = onOption != null)
         }
     }
 }
 
+/** One option, an icon over its name. Picked: 12% pink fill, a 3 px pink line, deep pink bold name and icon. */
 @Composable
 private fun OptionTile(opt: ConditionOption, selected: Boolean, animate: Boolean, onClick: (() -> Unit)?, modifier: Modifier, sub: String? = null) {
     val c = Heart.colors
     val f = selectFraction(selected, animate)
-    val shape = RoundedCornerShape(20.dp)
-    val bw = if (selected) 3.dp else 2.dp
+    val shape = RoundedCornerShape(24.dp)
     Column(
         modifier
+            .height(120.dp)
             .clip(shape)
-            .background(c.bgCard)
-            .innerShadow(shape, *CardInner)
-            .border(bw, lerp(c.line, c.pinkAccent, f), shape)
+            .background(PickedOptionFill.copy(alpha = PickedOptionFill.alpha * f))
+            .border(3.dp, c.pinkAccent.copy(alpha = f), shape)
             .tap(onClick)
-            // a tile with hours under its name keeps the same height as one without
-            .padding(top = (if (sub != null) 10.dp else 18.dp) + bw, bottom = (if (sub != null) 8.dp else 16.dp) + bw),
+            .padding(horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        // a tile with hours under its name keeps the same height as one without
         verticalArrangement = Arrangement.spacedBy(if (sub != null) 2.dp else 10.dp, Alignment.CenterVertically),
     ) {
-        val tint = lerp(OptionGray, c.pinkAccent, f)
-        Layered(Modifier.size(if (sub != null) 30.dp else 36.dp)) { svg(opt.icon, opt.inset, opt.bleed, Modifier.tint(tint)) }
-        Text(opt.label, style = HeartType.Label, color = lerp(c.textSecondary, c.pinkDeep, f), maxLines = 1, softWrap = false)
-        if (sub != null) Text(sub, style = HeartType.Small, color = lerp(c.textTertiary, c.pinkDeep, f * 0.6f), maxLines = 1, softWrap = false)
-    }
-}
-
-/** 직접 정하기 (07): from which day, and the range. A tap opens the wheels. */
-@Composable
-private fun CustomTimeRange(editable: Boolean) {
-    val c = Heart.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(c.pinkLight)
-            .tap(if (editable) ({ MessageDraft.sheet = WhenSheet.TimeRange }) else null)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(MessageDraft.opensFrom?.let(::koreanStart) ?: "오늘부터", style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-        Box(Modifier.weight(1f)) { FitLine(MessageDraft.customBand.spoken, HeartType.BodyStrong, c.pinkDeep) }
-        if (editable) Text("바꾸기", style = HeartType.Label, color = c.textTertiary, maxLines = 1)
+        Layered(Modifier.size(if (sub != null) 30.dp else 36.dp)) { svg(opt.icon, opt.inset, opt.bleed, Modifier.activeIcon(f)) }
+        Text(
+            opt.label, style = HeartType.Label.copy(fontWeight = if (f > 0.5f) FontWeight.Bold else FontWeight.Medium),
+            color = lerp(c.textSecondary, c.pinkDeep, f), maxLines = 1, softWrap = false,
+        )
+        if (sub != null) {
+            Text(
+                sub, style = HeartType.Small, color = lerp(c.textTertiary, c.pinkDeep, f * 0.6f),
+                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
 /** 열리기 시작하는 시각: from now, or from a day (and time) picked on the wheels. */
 @Composable
-private fun StartTime(editable: Boolean) {
+private fun StartTime(editable: Boolean, modifier: Modifier) {
     val c = Heart.colors
-    val shape = RoundedCornerShape(24.dp)
+    val from = MessageDraft.opensFrom?.let(::koreanStart) ?: if (Session.live) "지금부터" else "11월 7일 (토) 오전 7:00부터"
+    WhenLine(editable, { MessageDraft.sheet = WhenSheet.OpensFrom }, modifier) {
+        Text("$from 열려요", style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
+    }
+}
+
+/** 직접 정하기 (07): from which day, and the range, on the start time's line. */
+@Composable
+private fun CustomTimeRange(editable: Boolean, modifier: Modifier) {
+    val c = Heart.colors
+    val from = MessageDraft.opensFrom?.let(::koreanStart) ?: "오늘부터"
+    WhenLine(editable, { MessageDraft.sheet = WhenSheet.TimeRange }, modifier) {
+        Box(Modifier.weight(1f)) { FitLine("$from ${MessageDraft.customBand.spoken} 사이에 열려요", HeartType.BodyStrong, c.textPrimary) }
+    }
+}
+
+/** The clock and one line, no box around them; a tap opens the wheels. */
+@Composable
+private fun WhenLine(editable: Boolean, onClick: () -> Unit, modifier: Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .outerShadow(shape, TileDrop)
-            .clip(shape)
-            .background(c.bgCard)
-            .innerShadow(shape, *CardInner)
-            .tap(if (editable) ({ MessageDraft.sheet = WhenSheet.OpensFrom }) else null)
-            .padding(horizontal = 26.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .tap(if (editable) onClick else null)
+            .padding(vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val from = MessageDraft.opensFrom?.let(::koreanStart) ?: if (Session.live) "지금부터" else "11월 7일 (토) 오전 7:00부터"
-        Text("언제부터", style = HeartType.Body, color = c.textSecondary, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(from, style = HeartType.BodyStrong, color = c.textPrimary, maxLines = 1)
-        if (editable) Text("바꾸기", style = HeartType.Label, color = c.textTertiary, maxLines = 1)
+        Layered(Modifier.size(36.dp)) { svg("s06_icon_time_off", Inset.pct(12.5f), Inset.pct(5f)) }
+        content()
     }
 }
 
@@ -726,6 +608,7 @@ private fun MessageColumn(
     voice: @Composable () -> Unit,
     error: String?,
     busy: Boolean,
+    sent: Boolean,
     modifier: Modifier,
 ) {
     val c = Heart.colors
@@ -734,35 +617,32 @@ private fun MessageColumn(
             Text("남길 메시지", style = HeartType.HeartTitle, color = c.textPrimary, maxLines = 1, softWrap = false, modifier = Modifier.width(188.dp))
             FigmaSvg("s06_doodle_heart", Modifier.size(36.dp))
         }
-        Spacer(Modifier.height(10.dp))
-        Text("받는 사람  ${Session.view.partnerName}", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
         Spacer(Modifier.height(26.dp))
         voice()
         Spacer(Modifier.height(22.dp))
-        Text("받아쓴 글 (보내기 전에 확인해요)", style = HeartType.Label, color = c.textSecondary, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(10.dp))
         val fixes = if (editing) emptyList() else MessageDraft.fixes
+        // while couple words are put back in, the hint on them stands in for the field's name
+        Text(if (fixes.isNotEmpty()) FixHint else "받아쓴 글자", style = HeartType.Label, color = c.textSecondary, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
         TranscriptBox(
             transcript, editing, onEdit,
-            placeholder = if (MessageDraft.voice.transcribing) Listening else "여기를 누르면 직접 쓸 수 있어요",
+            placeholder = if (MessageDraft.voice.transcribing) Listening else "녹음하면 여기에 적혀요",
             fixes = fixes, onRevert = MessageDraft::revert,
         )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            when {
-                editing -> "고치는 중이에요. 다 고치면 키보드의 완료를 눌러요"
-                fixes.isNotEmpty() -> FixHint
-                else -> "글을 누르면 고칠 수 있어요. 그대로 두면 이 문장으로 보내요"
-            },
-            style = HeartType.Label, color = c.textTertiary, modifier = Modifier.fillMaxWidth(),
-        )
+        Spacer(Modifier.height(12.dp))
+        TextAction("글자로만 쓰기", Modifier.align(Alignment.CenterHorizontally), style = HeartType.Headline, color = Heart.colors.textSecondary, onClick = onEdit)
         ErrorLine(error)
         Spacer(Modifier.weight(1f))
-        SecondaryButton("녹음 없이 글로만 쓰기", Modifier.fillMaxWidth(), onEdit)
-        Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             SecondaryButton("취소", Modifier.width(200.dp), onCancel)
-            PrimaryButton(if (busy) "남기는 중" else "메시지 남기기", Modifier.weight(1f), onSend.takeUnless { busy })
+            PrimaryButton(
+                when {
+                    sent -> "남겼어요"
+                    busy -> "남기는 중"
+                    else -> "메시지 남기기"
+                },
+                Modifier.weight(1f), enabled = !sent, onClick = onSend.takeUnless { busy },
+            )
         }
     }
 }
@@ -786,7 +666,7 @@ private fun RecordedVoice() {
         Text("0:06", style = HeartType.BodyStrong, color = c.textSecondary, maxLines = 1)
         Spacer(Modifier.weight(1f))
         Row(
-            Modifier.clip(pill).background(c.pinkLight).padding(start = 16.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
+            Modifier.padding(start = 16.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -799,7 +679,7 @@ private fun RecordedVoice() {
 /** The empty text box while the recognizer is still writing down the recording. */
 internal const val Listening = "말하는 대로 적고 있어요"
 
-/** Shown under a sentence with couple words put back in. */
+/** Shown over a sentence with couple words put back in. */
 internal const val FixHint = "밑줄 친 말은 우리 말로 고쳤어요. 누르면 들은 대로 돌아가요"
 
 private const val CursorId = "cursor"
@@ -897,9 +777,9 @@ private val Particles = listOf(
     Particle("s08_heart8", 1635.85f, 849.93f, 20f, 12.5f),
 )
 
-// Center of the 메시지 남기기 button.
+// Center of the send button on 08 (844 to 932, the panel is shorter there).
 private const val BurstX = 1348.25f
-private const val BurstY = 976f
+private const val BurstY = 888f
 
 /** 16 Particle Burst: 8 hearts spread out of the send button for 0.7 s and fade away. */
 @Composable
@@ -936,11 +816,11 @@ private fun Toast(text: String, modifier: Modifier) {
     LaunchedEffect(Unit) { t.animateTo(1f, tween(300, easing = LinearOutSlowInEasing)) }
     Row(
         modifier
+            .widthIn(max = 1500.dp)
             .graphicsLayer {
                 alpha = t.value
                 translationY = (1f - t.value) * 16.dp.toPx()
             }
-            .outerShadow(pill, Shadow(0f, 12f, 32f, Color(0x402E2328)))
             .clip(pill)
             .background(c.textPrimary)
             .padding(start = 28.dp, end = 34.dp, top = 18.dp, bottom = 18.dp),
@@ -948,7 +828,8 @@ private fun Toast(text: String, modifier: Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FigmaSvg("s08_check", Modifier.size(36.dp))
-        Text(text, style = HeartType.BodyStrong, color = c.textOnAccent, maxLines = 1)
+        // a long sentence with a start day takes a second line instead of running off the window
+        Text(text, style = HeartType.BodyStrong, color = c.textOnAccent, maxLines = 2)
     }
 }
 
@@ -974,7 +855,6 @@ internal fun HangulKeyboard(
         Box(
             Modifier
                 .size(width, 76.dp)
-                .outerShadow(keyShape, Shadow(0f, 3f, 0f, Color(0x1F29211F)))
                 .clip(keyShape)
                 .background(if (accent) c.pinkAccent else Color.White)
                 .tap(onClick),
@@ -997,7 +877,6 @@ internal fun HangulKeyboard(
     Column(
         modifier
             .fillMaxWidth()
-            .outerShadow(shape, Shadow(0f, -10f, 30f, Color(0x2429211F)))
             .clip(shape)
             .background(KeyboardBg)
             .padding(start = 60.dp, end = 60.dp, top = 24.dp, bottom = 28.dp),
@@ -1104,21 +983,40 @@ private fun selectFraction(selected: Boolean, animate: Boolean): Float {
     return a.value
 }
 
-/** Recolors a one-color stroke icon (selected options turn pink). */
-private fun Modifier.tint(color: Color) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+/** Paints an icon in one [color], keeping its shape and alpha (the white mic on the pink record button). */
+internal fun Modifier.tint(color: Color) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()
         drawRect(color, blendMode = BlendMode.SrcIn)
     }
 
-/** CSS `border-dashed` on a rounded box. */
-private fun Modifier.dashedBorder(width: Dp, color: Color, radius: Dp) = drawBehind {
-    val w = width.toPx()
-    drawRoundRect(
-        color,
-        topLeft = Offset(w / 2, w / 2),
-        size = Size(size.width - w, size.height - w),
-        cornerRadius = CornerRadius(radius.toPx() - w / 2),
-        style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx()))),
-    )
+/**
+ * Turns a duotone icon active by [f] (0..1): the #3A2F2A line goes deep pink #C93E68 and the
+ * #E9557F fill goes from 18% to 32%, so the picked option reads at a glance.
+ */
+private fun Modifier.activeIcon(f: Float): Modifier = if (f <= 0f) this else drawWithContent {
+    val m = FloatArray(20) { i -> IdentityMatrix[i] + (ActiveMatrix[i] - IdentityMatrix[i]) * f }
+    val paint = Paint().apply { colorFilter = ColorFilter.colorMatrix(ColorMatrix(m)) }
+    drawIntoCanvas { canvas ->
+        canvas.saveLayer(Rect(Offset.Zero, size), paint)
+        drawContent()
+        canvas.restore()
+    }
 }
+
+private val IdentityMatrix = floatArrayOf(
+    1f, 0f, 0f, 0f, 0f,
+    0f, 1f, 0f, 0f, 0f,
+    0f, 0f, 1f, 0f, 0f,
+    0f, 0f, 0f, 1f, 0f,
+)
+
+// Each channel is a line through two colors: the line (58, 47, 42) goes to (201, 62, 104) and the
+// fill (233, 85, 127) keeps its color. Alpha grows with red, so the fill's 46 becomes 82 (32%)
+// while the line stays opaque; transparent pixels have no red and stay transparent.
+private val ActiveMatrix = floatArrayOf(
+    0.1829f, 0f, 0f, 0f, 190.39f,
+    0f, 0.6053f, 0f, 0f, 33.55f,
+    0f, 0f, 0.2706f, 0f, 92.64f,
+    0.1532f, 0f, 0f, 1f, 0f,
+)

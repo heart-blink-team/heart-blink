@@ -52,17 +52,13 @@ fun HeartLogo(modifier: Modifier = Modifier.size(302.4.dp, 92.4.dp)) {
     }
 }
 
-/** Round white button in the header corners (shop, account). */
+/** Header corner button (shop, account): the duotone icon alone, a 92 px touch area, no circle behind it. */
 @Composable
 fun RoundIconButton(icon: @Composable BoxScope.() -> Unit, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
-    val c = Heart.colors
     Box(
         modifier
             .size(92.dp)
-            .outerShadow(CircleShape, Shadow(0f, 12f, 32f, Color(0x1229211F)))
             .clip(CircleShape)
-            .background(c.bgCard)
-            .border(2.dp, c.line, CircleShape)
             .tap(onClick),
         contentAlignment = Alignment.Center,
     ) { Box(Modifier.size(52.dp), content = icon) }
@@ -88,55 +84,28 @@ enum class Tab(val label: String, val icon: String, val iconInset: Inset, val ic
     Record("기록", "tab_record", Inset.pct(20f, 15.63f, 20f, 12.19f), Inset.pct(6.77f, 5.63f)),
 }
 
-private val TabShape = RoundedCornerShape(28.dp)
-
-/** Heart/Toolbar: the four tabs along the bottom edge of the window. */
+/**
+ * Heart2/Toolbar: the four tabs on a white bar fixed to the bottom edge, 1682 x 112 with a hairline on top.
+ * The active tab is deep pink and bold with a short pink bar above it; nothing floats or casts a shadow.
+ */
 @Composable
 fun HeartToolbar(active: Tab?, modifier: Modifier = Modifier, newQuestion: Boolean = false, onTab: (Tab) -> Unit = {}) {
     val c = Heart.colors
-    val shape = RoundedCornerShape(topStart = 48.dp, topEnd = 48.dp)
     Row(
         modifier
-            .width(1300.dp)
-            .height(120.dp)
-            .outerShadow(shape, Shadow(0f, -10f, 36f, Color(0x0F292124)))
-            .clip(shape)
+            .fillMaxWidth()
+            .height(112.dp)
             .background(c.bgCard)
-            .innerShadow(shape, Shadow(0f, 6f, 12f, Color(0xE6FFFFFF)))
-            .drawBehind {
-                // border on the left, top and right only
-                val w = 2.dp.toPx()
-                val r = 48.dp.toPx()
-                val h = w / 2
-                val path = Path().apply {
-                    moveTo(h, size.height)
-                    lineTo(h, r)
-                    arcTo(Rect(h, h, 2 * r - h, 2 * r - h), 180f, 90f, false)
-                    lineTo(size.width - r, h)
-                    arcTo(Rect(size.width - 2 * r + h, h, size.width - h, 2 * r - h), 270f, 90f, false)
-                    lineTo(size.width - h, size.height)
-                }
-                drawPath(path, c.line, style = Stroke(w))
-            }
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .drawBehind { drawRect(c.line, size = androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx())) }
+            .padding(horizontal = 80.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Tab.entries.forEachIndexed { i, tab ->
-            if (i > 0) Box(Modifier.width(2.dp).height(56.dp).clip(RoundedCornerShape(1.dp)).background(c.line))
+        Tab.entries.forEach { tab ->
             val on = tab == active
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            Box(Modifier.weight(1f).fillMaxHeight().tap { onTab(tab) }) {
+                if (on) Box(Modifier.align(Alignment.TopCenter).padding(top = 2.dp).size(72.dp, 6.dp).clip(RoundedCornerShape(3.dp)).background(c.pinkAccent))
                 Row(
-                    Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (on) Modifier
-                                .outerShadow(TabShape, Shadow(0f, 6f, 14f, Color(0x0F292124)))
-                                .clip(TabShape)
-                                .background(c.pinkLight)
-                                .innerShadow(TabShape, Shadow(-3f, -4f, 8f, Color(0x0D292124)), Shadow(4f, 4f, 8f, Color(0xE6FFFFFF)))
-                            else Modifier
-                        )
-                        .tap { onTab(tab) },
+                    Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -148,7 +117,7 @@ fun HeartToolbar(active: Tab?, modifier: Modifier = Modifier, newQuestion: Boole
                         maxLines = 1,
                     )
                 }
-                if (tab == Tab.Question && newQuestion) NewBadge(Modifier.offset(x = if (on) 77.75.dp else 87.75.dp))
+                if (tab == Tab.Question && newQuestion) NewBadge(Modifier.align(Alignment.TopCenter).offset(x = (-63).dp, y = 2.dp))
             }
         }
     }

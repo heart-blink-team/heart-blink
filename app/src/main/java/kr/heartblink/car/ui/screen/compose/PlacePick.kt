@@ -106,8 +106,8 @@ private val Radii = listOf(300 to "300m", 500 to "500m", 1000 to "1km")
 internal fun PlaceDetail() {
     val places by NaviWatch.places.collectAsState()
     LaunchedEffect(Unit) { NaviWatch.requestPlaces() }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             places.take(6).forEach { p ->
                 val on = !PlaceDraft.fromMap && PlaceDraft.place?.let { it.lat == p.lat && it.lng == p.lng } == true
                 Chip(p.name, on) {
@@ -118,13 +118,17 @@ internal fun PlaceDetail() {
             val picked = PlaceDraft.place?.name?.takeIf { PlaceDraft.fromMap }
             Chip(picked?.let { "지도: $it" } ?: "지도에서 고르기", picked != null) { PlaceDraft.onMap() }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("이만큼 가까이 오면", style = HeartType.Label, color = Heart.colors.textSecondary, maxLines = 1)
             Radii.forEach { (m, label) -> Chip(label, PlaceDraft.radiusM == m) { PlaceDraft.radiusM = m } }
         }
     }
 }
 
+/**
+ * A flat choice chip. Picked, it is strong like a picked option: 12% pink fill, 3 px pink line and deep pink
+ * bold words. The white under the fill keeps it readable over the map.
+ */
 @Composable
 private fun Chip(text: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = Heart.colors
@@ -132,11 +136,17 @@ private fun Chip(text: String, on: Boolean, modifier: Modifier = Modifier, onCli
     Box(
         modifier
             .clip(shape)
-            .background(if (on) c.pinkLight else c.bgCard)
+            .background(c.bgCard)
+            .background(if (on) PickedOptionFill else Color.Transparent)
             .border(if (on) 3.dp else 2.dp, if (on) c.pinkAccent else c.line, shape)
             .tap(onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-    ) { Text(text, style = HeartType.Label, color = if (on) c.pinkDeep else c.textPrimary, maxLines = 1) }
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text, style = HeartType.Label.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Medium),
+            color = if (on) c.pinkDeep else c.textPrimary, maxLines = 1,
+        )
+    }
 }
 
 /** Name of a pin with nothing named near it. */
@@ -165,10 +175,11 @@ internal fun PlaceMapScreen(nav: Nav) {
         NaviWatch.requestPlaces()
     }
     HeartWindow(Tab.Message, nav) {
-        Column(Modifier.padding(start = 40.dp, end = 40.dp, top = 140.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        // the same edges and title as 06, the map as the one card on the page
+        Column(Modifier.padding(start = 88.dp, end = 88.dp, top = 200.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             val title = if (park) "${Session.view.partnerName.ifBlank { "연인" }}님이 주차할 곳(집, 회사 등)을 골라요"
                 else "지도나 이름을 눌러 메시지가 열릴 곳을 골라요"
-            Text(title, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
+            Text(title, style = HeartType.HeartTitle, color = c.textPrimary, maxLines = 1)
             Box(Modifier.fillMaxWidth().height(640.dp).clip(RoundedCornerShape(28.dp)).border(2.dp, c.line, RoundedCornerShape(28.dp))) {
                 PinMap(pin, radius, recenter) { pin = it }
                 Row(

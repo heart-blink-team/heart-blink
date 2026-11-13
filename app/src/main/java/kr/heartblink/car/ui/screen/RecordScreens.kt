@@ -45,7 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -73,10 +76,8 @@ import kr.heartblink.car.ui.component.FigmaSvg
 import kr.heartblink.car.ui.component.Inset
 import kr.heartblink.car.ui.component.Layered
 import kr.heartblink.car.ui.component.SecondaryButton
-import kr.heartblink.car.ui.component.Shadow
 import kr.heartblink.car.ui.component.Tab
-import kr.heartblink.car.ui.component.innerShadow
-import kr.heartblink.car.ui.component.outerShadow
+import kr.heartblink.car.ui.component.UnderlineTabs
 import kr.heartblink.car.ui.component.tap
 import kr.heartblink.car.ui.theme.DesignWidth
 import kr.heartblink.car.ui.theme.Gaegu
@@ -128,7 +129,7 @@ private data class RecordMessage(
     val detail: String,
     val voice: Boolean,
     val status: String,
-    /** true: pink filled pill (heard / replay), false: outlined pill (not opened yet). */
+    /** true: deep pink status (heard / replay), false: grey status (not opened yet). */
     val heard: Boolean,
     /** Chip text in the replay sheet (received messages only). */
     val opensOn: String = "",
@@ -237,22 +238,18 @@ private sealed interface Answer {
 
 private data class QuestionCard(
     val head: String,
-    val status: String,
+    /** I have not answered yet: the card shows the 답하기 button. */
     val waitingForMe: Boolean,
     val question: String,
-    val note: String? = null,
     val me: Answer,
     val partner: Answer,
 )
 
 private val questionSamples = listOf(
-    QuestionCard("129번째 질문  지금 질문", "내 답을 기다려요", true, "요즘 나한테 제일 고마웠던 순간은?", null, Answer.Waiting, Answer.Locked()),
-    QuestionCard("128번째 질문  11월 6일에 열림", "둘 다 답했어요", false, "이번 주말에 나랑 꼭 하고 싶은 것 하나는?", null, Answer.Voice("캠핑 가고 싶어!"), Answer.Voice("캠핑 가서 같이 별 보고 싶어!")),
-    QuestionCard("127번째 질문  11월 5일에 열림", "둘 다 답했어요", false, "오늘 출근길에 제일 먼저 떠오른 생각은?", null, Answer.Voice("어제 같이 본 영화 장면"), Answer.Voice("지훈이 잘 일어났나")),
-    QuestionCard(
-        "126번째 질문  11월 3일부터 4일까지", "하루 이어진 질문", false, "처음 만난 날, 제일 기억나는 장면은?",
-        "3일에 서연님이 차를 타지 않아 4일까지 이어졌어요", Answer.Voice("카페에서 웃던 얼굴"), Answer.Voice("우산 씌워 준 거"),
-    ),
+    QuestionCard("129번째 질문  지금 질문", true, "요즘 나한테 제일 고마웠던 순간은?", Answer.Waiting, Answer.Locked("내가 답하면 열려요")),
+    QuestionCard("128번째 질문  11월 6일에 열림", false, "이번 주말에 나랑 꼭 하고 싶은 것 하나는?", Answer.Voice("캠핑 가고 싶어!"), Answer.Voice("캠핑 가서 같이 별 보고 싶어!")),
+    QuestionCard("127번째 질문  11월 5일에 열림", false, "오늘 출근길에 제일 먼저 떠오른 생각은?", Answer.Voice("어제 같이 본 영화 장면"), Answer.Voice("지훈이 잘 일어났나")),
+    QuestionCard("126번째 질문  11월 3일부터 4일까지", false, "처음 만난 날, 제일 기억나는 장면은?", Answer.Voice("카페에서 웃던 얼굴"), Answer.Voice("우산 씌워 준 거")),
 )
 
 private fun kr.heartblink.car.data.Answer.toAnswer(): Answer =
@@ -261,17 +258,22 @@ private fun kr.heartblink.car.data.Answer.toAnswer(): Answer =
 /** The question we are on now, as the first card of 18. */
 private fun QuestionState.toCurrentCard(partnerName: String): QuestionCard = QuestionCard(
     "${question.no}번째 질문  지금 질문",
-    if (mine == null) "내 답을 기다려요" else "${partnerName}님 답을 기다려요",
-    mine == null, question.body, null,
+    mine == null, question.body,
     mine?.toAnswer() ?: Answer.Waiting,
-    Answer.Locked(if (mine == null) "둘 다 답하면 열려요" else "${partnerName}님이 답하면 열려요"),
+    Answer.Locked(
+        when {
+            mine != null -> "${partnerName}님이 답하면 열려요"
+            partner != null -> "내가 답하면 열려요"
+            else -> "둘 다 답하면 열려요"
+        },
+    ),
 )
 
 /** A question both answered; the head shows the day the second answer came in. */
 private fun QuestionState.toDoneCard(): QuestionCard {
     val day = listOfNotNull(mine?.createdAt, partner?.createdAt).maxOrNull()?.let(::koreanDay)
     return QuestionCard(
-        "${question.no}번째 질문" + (day?.let { "  $it" } ?: ""), "둘 다 답했어요", false, question.body, null,
+        "${question.no}번째 질문" + (day?.let { "  $it" } ?: ""), false, question.body,
         mine?.toAnswer() ?: Answer.Waiting, partner?.toAnswer() ?: Answer.Locked(),
     )
 }
@@ -354,7 +356,7 @@ private fun ColumnScope.RowList(rows: List<RecordMessage>?, empty: String, row: 
     when {
         rows == null -> Skeleton()
         rows.isEmpty() -> EmptyLine(empty)
-        else -> LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        else -> LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
             itemsIndexed(rows) { i, m -> row(i, m) }
         }
     }
@@ -363,7 +365,7 @@ private fun ColumnScope.RowList(rows: List<RecordMessage>?, empty: String, row: 
 @Composable
 private fun Skeleton() {
     val sweep = rememberSweep()
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) { repeat(4) { SkeletonRow(sweep) } }
+    Column(Modifier.fillMaxWidth()) { repeat(4) { SkeletonRow(sweep) } }
 }
 
 @Composable
@@ -419,7 +421,7 @@ fun RecordQuestionsScreen(nav: Nav) {
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                gridItemsIndexed(cards) { i, q -> QuestionCardView(q, playback, Modifier.fadeUp(i)) }
+                gridItemsIndexed(cards) { i, q -> QuestionCardView(q, playback, Modifier.fadeUp(i), onAnswer = { nav.go("05") }) }
             }
         }
     }
@@ -432,7 +434,7 @@ fun RecordLoadingScreen(nav: Nav) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Window, panel and inner tabs
+// Window and inner tabs
 // ---------------------------------------------------------------------------------------------
 
 private enum class RecordTab(val label: String, val sample: String, val screen: String) {
@@ -452,11 +454,9 @@ private fun RecordTab.count(): String {
     }.orEmpty()
 }
 
-private val PanelShape = RoundedCornerShape(40.dp)
-
 /**
- * The common 기록 window: header and toolbar from [HeartWindow], and the beige panel between them
- * (40 px side margin, 160 px from the top, 150 px above the bottom) with the title row on top.
+ * The common 기록 window: header and toolbar from [HeartWindow], and the page between them
+ * (84 px side margin, 196 px from the top, 186 px above the bottom) with the title row on top.
  * With [load], the lists are fetched again from the server each time a 기록 screen opens.
  */
 @Composable
@@ -464,69 +464,32 @@ private fun RecordWindow(selected: RecordTab, nav: Nav, load: Boolean = true, li
     val c = Heart.colors
     LaunchedEffect(Unit) { if (load && Session.live) Records.load() }
     val km = if (Session.live) "%.0f".format(Records.km ?: 0.0) else "860"
+    val tabs = RecordTab.entries
     HeartWindow(Tab.Record, nav) {
         Column(
             Modifier
-                .padding(start = 40.dp, end = 40.dp, top = 160.dp, bottom = 150.dp)
                 .fillMaxSize()
-                .outerShadow(PanelShape, Shadow(0f, 18f, 44f, Color(0x0D292124)))
-                .clip(PanelShape)
-                .background(c.pinkSoft)
-                .innerShadow(PanelShape, Shadow(0f, -6f, 16f, Color(0x08292124)), Shadow(0f, 6f, 14f, Color(0xB3FFFFFF)))
-                .padding(horizontal = 44.dp, vertical = 36.dp),
+                .padding(start = 84.dp, end = 84.dp, top = 196.dp, bottom = 186.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("기록", style = HeartType.HeartTitle, color = c.textPrimary, maxLines = 1)
                     FigmaSvg("rec_doodle_heart", Modifier.size(36.dp))
                 }
                 DistanceBadge(km)
-                RecordTabs(selected) { if (it != selected) nav.go(it.screen) }
+                UnderlineTabs(
+                    tabs.map { it.label },
+                    selected.ordinal,
+                    counts = tabs.map { it.count().ifEmpty { null } },
+                    gap = 36.dp,
+                ) { i -> if (tabs[i] != selected) nav.go(tabs[i].screen) }
             }
             list()
-        }
-    }
-}
-
-private val Pill = RoundedCornerShape(999.dp)
-
-/** The white segmented control on the right of the title row. */
-@Composable
-private fun RecordTabs(selected: RecordTab, onSelect: (RecordTab) -> Unit) {
-    val c = Heart.colors
-    Row(
-        Modifier
-            .clip(Pill)
-            .background(c.bgCard)
-            .innerShadow(Pill, Shadow(-2f, -2f, 6f, Color(0xE6FFFFFF)), Shadow(3f, 4f, 8f, Color(0x0D292124)))
-            .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        RecordTab.entries.forEach { tab ->
-            val on = tab == selected
-            Row(
-                Modifier
-                    .clip(Pill)
-                    .background(c.bgCard)
-                    .tap { onSelect(tab) }
-                    .padding(horizontal = 30.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    tab.label,
-                    style = if (on) HeartType.Headline else HeartType.BodyStrong,
-                    color = if (on) c.pinkDeep else c.textSecondary,
-                    maxLines = 1,
-                )
-                Text(tab.count(), style = HeartType.Label, color = if (on) c.pinkDeep else c.textTertiary, maxLines = 1)
-            }
         }
     }
 }
@@ -543,6 +506,19 @@ private fun Modifier.recordCard(): Modifier = this
     .clip(CardShape)
     .background(Heart.colors.bgCard)
     .border(2.dp, Heart.colors.line, CardShape)
+
+/** A list row on the page itself: a 2 px hairline along the bottom edge, inside the row's 136 px. */
+@Composable
+private fun Modifier.rowRule(): Modifier {
+    val line = Heart.colors.line
+    return drawBehind {
+        val h = 2.dp.toPx()
+        drawRect(line, Offset(0f, size.height - h), Size(size.width, h))
+    }
+}
+
+/** Row padding from Figma (22 above, 22 below plus the 2 px rule). */
+private val RowPadding = Modifier.padding(start = 8.dp, end = 8.dp, top = 22.dp, bottom = 24.dp)
 
 private val HandM = HeartType.gaegu(40f, spacing = -0.04f)
 private val HandS = HeartType.gaegu(32f, bold = false, spacing = -0.04f)
@@ -563,13 +539,13 @@ private fun MessageRow(
     Row(
         modifier
             .fillMaxWidth()
-            .recordCard()
+            .rowRule()
             .tap(onClick)
-            .padding(horizontal = 30.dp, vertical = 24.dp),
+            .then(RowPadding),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(72.dp).clip(CircleShape).background(c.pinkLight), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
             Layered(Modifier.size(36.dp)) { svg(m.icon.svg, m.icon.inset, m.icon.bleed) }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -577,23 +553,23 @@ private fun MessageRow(
             Text(m.detail, style = HeartType.Label, color = c.textSecondary, maxLines = 1)
         }
         if (m.voice) {
-            Box(Modifier.size(52.dp).tap(onPlay)) { FigmaSvg(if (playing) "s17_pause" else "rec_play", Modifier.size(52.dp)) }
+            Box(Modifier.size(64.dp).tap(onPlay)) { FigmaSvg(if (playing) "s17_pause" else "rec_play", Modifier.size(64.dp)) }
         }
-        StatusPill(m.status, m.heard)
+        StatusText(m.status, m.heard)
     }
 }
 
+/** The row's state as a word: deep pink once heard (or to replay), grey while not opened. */
 @Composable
-private fun StatusPill(text: String, filled: Boolean) {
+private fun StatusText(text: String, strong: Boolean) {
     val c = Heart.colors
-    Box(
-        Modifier
-            .clip(Pill)
-            .background(if (filled) c.pinkLight else c.bgCard)
-            .then(if (filled) Modifier.padding(horizontal = 20.dp, vertical = 10.dp) else Modifier.border(2.dp, c.pinkMid, Pill).padding(horizontal = 22.dp, vertical = 12.dp)),
-    ) {
-        Text(text, style = HeartType.BodyStrong, color = if (filled) c.pinkDeep else c.textSecondary, maxLines = 1)
-    }
+    Text(
+        text,
+        style = HeartType.BodyStrong,
+        color = if (strong) c.pinkDeep else c.textSecondary,
+        maxLines = 1,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -621,30 +597,24 @@ private fun ReplaySheet(m: RecordMessage, modifier: Modifier, onPass: () -> Unit
 
     Column(
         modifier
-            .outerShadow(SheetShape, Shadow(0f, -12f, 40f, Color(0x14292124)))
             .clip(SheetShape)
             .background(c.bgCard)
-            .innerShadow(SheetShape, Shadow(0f, 6f, 12f, Color(0xE6FFFFFF)))
             .tap {} // keeps taps on the sheet from reaching the dim behind it
             .padding(start = 64.dp, end = 64.dp, top = 20.dp, bottom = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.size(88.dp, 8.dp).clip(RoundedCornerShape(4.dp)).background(c.pinkMid))
         Spacer(Modifier.height(30.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.clip(Pill).background(c.pinkLight).padding(horizontal = 18.dp, vertical = 8.dp)) {
-                Text(m.opensOn, style = HeartType.Label, color = c.pinkDeep, maxLines = 1)
-            }
-            Text("${Session.view.partnerName}님이 남긴 메시지", style = HeartType.BodyStrong, color = c.textSecondary, maxLines = 1)
-        }
+        Text(
+            m.opensOn, style = HeartType.Label, color = c.pinkDeep, maxLines = 1,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+        )
         Spacer(Modifier.height(20.dp))
         Text(m.quote, style = HandL, color = c.textPrimary)
         Spacer(Modifier.height(28.dp))
         if (m.voice) {
             Row(
                 Modifier
-                    .clip(Pill)
-                    .background(c.pinkLight)
                     .tap(path?.let { p -> { playback.toggleRemote(p, markHeard) } })
                     .padding(start = 14.dp, end = 26.dp, top = 14.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -677,8 +647,10 @@ private fun ReplaySheet(m: RecordMessage, modifier: Modifier, onPass: () -> Unit
 // Question diary cards (18)
 // ---------------------------------------------------------------------------------------------
 
+private val AnswerButtonShape = RoundedCornerShape(28.dp)
+
 @Composable
-private fun QuestionCardView(q: QuestionCard, playback: VoicePlayback, modifier: Modifier = Modifier) {
+private fun QuestionCardView(q: QuestionCard, playback: VoicePlayback, modifier: Modifier = Modifier, onAnswer: () -> Unit) {
     val c = Heart.colors
     val v = Session.view
     Column(
@@ -691,13 +663,22 @@ private fun QuestionCardView(q: QuestionCard, playback: VoicePlayback, modifier:
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(q.head, style = HeartType.Label, color = c.textSecondary, maxLines = 1)
-            Box(Modifier.clip(Pill).background(c.pinkLight).padding(horizontal = 14.dp, vertical = 4.dp)) {
-                Text(q.status, style = HeartType.Label, color = if (q.waitingForMe) c.pinkDeep else c.textSecondary, maxLines = 1)
+            if (q.waitingForMe) {
+                // 답하기: opens today's question (05) to answer it
+                Box(
+                    Modifier
+                        .size(144.dp, 64.dp)
+                        .clip(AnswerButtonShape)
+                        .background(c.pinkAccent)
+                        .tap(onAnswer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("답하기", style = HeartType.noto(28f, 700, 1.35f), color = c.textOnAccent, maxLines = 1)
+                }
             }
         }
         Text(q.question, style = HandM, color = c.textPrimary)
         Spacer(Modifier.weight(1f))
-        if (q.note != null) Text(q.note, style = HeartType.Label, color = c.textTertiary, maxLines = 1)
         Box(Modifier.fillMaxWidth().height(2.dp).background(c.line))
         AnswerRow(v.meName, q.me, playback)
         AnswerRow(v.partnerName, q.partner, playback)
@@ -714,12 +695,12 @@ private fun AnswerRow(name: String, answer: Answer, playback: VoicePlayback) {
                 Text(answer.text, style = HandS, color = c.textPrimary, maxLines = 1, modifier = Modifier.weight(1f))
                 if (answer.playable) {
                     val path = answer.audioPath
-                    Box(Modifier.size(40.dp).tap(path?.let { p -> { playback.toggleRemote(p) } })) {
-                        FigmaSvg(if (playback.isPlaying(path)) "s17_pause" else "s18_play_small", Modifier.size(40.dp))
+                    Box(Modifier.size(56.dp).tap(path?.let { p -> { playback.toggleRemote(p) } })) {
+                        FigmaSvg(if (playback.isPlaying(path)) "s17_pause" else "s18_play_small", Modifier.size(56.dp))
                     }
                 }
             }
-            Answer.Waiting -> Text("다음 여유로운 순간에 다시 물어볼게요", style = HeartType.Label, color = c.textTertiary, maxLines = 1, modifier = Modifier.weight(1f))
+            Answer.Waiting -> Text("다음 여유로운 순간에 다시 물어볼게요", style = HeartType.Label, color = c.textSecondary, maxLines = 1, modifier = Modifier.weight(1f))
             is Answer.Locked -> {
                 FigmaSvg("s18_lock", Modifier.size(28.dp))
                 Text(answer.text, style = HeartType.Label, color = c.textSecondary, maxLines = 1)
@@ -734,12 +715,11 @@ private fun AnswerRow(name: String, answer: Answer, playback: VoicePlayback) {
 
 @Composable
 private fun SkeletonRow(sweep: () -> Float) {
-    val c = Heart.colors
     Row(
         Modifier
             .fillMaxWidth()
-            .recordCard()
-            .padding(horizontal = 30.dp, vertical = 24.dp),
+            .rowRule()
+            .then(RowPadding),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
