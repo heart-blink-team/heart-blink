@@ -39,6 +39,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kr.heartblink.car.app.NaviWatch
+import kr.heartblink.car.app.Session
 import kr.heartblink.car.data.Place
 import kr.heartblink.car.ui.component.PrimaryButton
 import kr.heartblink.car.ui.component.SecondaryButton
@@ -81,7 +82,22 @@ internal object PlaceDraft {
     var onMap: () -> Unit = {}
 
     val chosen: Place? get() = place?.copy(radiusM = radiusM)
+
+    /**
+     * Where a 주차 message opens (06-3): a place the sender knows, such as the partner's home or office,
+     * picked with a pin. The partner's car opens it when its gear goes to P within [ParkRadiusM].
+     */
+    var parkAt by mutableStateOf<Place?>(null)
+
+    /** True while 06-5 picks [parkAt] instead of [place]. */
+    val pickingPark: Boolean get() = MessageDraft.group == ConditionGroup.Arrival
 }
+
+/** How near the car must stop for a 주차 message: a car park can be large, the pin sits on the building. */
+internal const val ParkRadiusM = 300
+
+/** "집" for a named pin, "고른 곳" for a bare one: the place in "서연님이 ○○에 주차하면 열려요". */
+internal fun parkName(p: Place?): String = p?.name?.takeIf { it.isNotBlank() && it != MapPinName } ?: "고른 곳"
 
 private val Radii = listOf(300 to "300m", 500 to "500m", 1000 to "1km")
 
@@ -129,12 +145,19 @@ internal const val MapPinName = "지도에서 고른 곳"
 /** A pin on the map and the name of what is near it. */
 private data class Pin(val at: LatLng, val name: String)
 
-/** 06-5: tap the map or a name on it to put the pin; 이곳으로 keeps it and goes back to 06-4. */
+/**
+ * 06-5: tap the map or a name on it to put the pin; 이곳으로 keeps it and goes back to 06-4, or to 06-3 when
+ * it picks where a 주차 message opens (a fixed circle there, so no size to choose).
+ */
 @Composable
 internal fun PlaceMapScreen(nav: Nav) {
     val c = Heart.colors
+    val park = PlaceDraft.pickingPark
+    val back = if (park) "06-3" else "06-4"
+    val radius = if (park) ParkRadiusM else PlaceDraft.radiusM
     var pin by remember {
-        mutableStateOf(PlaceDraft.place?.takeIf { PlaceDraft.fromMap }?.let { Pin(LatLng(it.lat, it.lng), it.name) })
+        val start = if (park) PlaceDraft.parkAt else PlaceDraft.place?.takeIf { PlaceDraft.fromMap }
+        mutableStateOf(start?.let { Pin(LatLng(it.lat, it.lng), it.name) })
     }
     var recenter by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -143,9 +166,11 @@ internal fun PlaceMapScreen(nav: Nav) {
     }
     HeartWindow(Tab.Message, nav) {
         Column(Modifier.padding(start = 40.dp, end = 40.dp, top = 140.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text("지도나 이름을 눌러 메시지가 열릴 곳을 골라요", style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
+            val title = if (park) "${Session.view.partnerName.ifBlank { "연인" }}님이 주차할 곳(집, 회사 등)을 골라요"
+                else "지도나 이름을 눌러 메시지가 열릴 곳을 골라요"
+            Text(title, style = HeartType.Headline, color = c.textPrimary, maxLines = 1)
             Box(Modifier.fillMaxWidth().height(640.dp).clip(RoundedCornerShape(28.dp)).border(2.dp, c.line, RoundedCornerShape(28.dp))) {
-                PinMap(pin, PlaceDraft.radiusM, recenter) { pin = it }
+                PinMap(pin, radius, recenter) { pin = it }
                 Row(
                     Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -162,16 +187,24 @@ internal fun PlaceMapScreen(nav: Nav) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("이만큼 가까이 오면", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
-                Radii.forEach { (m, label) -> Chip(label, PlaceDraft.radiusM == m) { PlaceDraft.radiusM = m } }
+                if (park) {
+                    Text("이 곳 ${ParkRadiusM}m 안에서 P로 바꾸면 열려요", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
+                } else {
+                    Text("이만큼 가까이 오면", style = HeartType.Body, color = c.textSecondary, maxLines = 1)
+                    Radii.forEach { (m, label) -> Chip(label, PlaceDraft.radiusM == m) { PlaceDraft.radiusM = m } }
+                }
                 Box(Modifier.weight(1f))
-                SecondaryButton("취소", Modifier.width(200.dp), onClick = { nav.go("06-4") })
+                SecondaryButton("취소", Modifier.width(200.dp), onClick = { nav.go(back) })
                 PrimaryButton("이곳으로", Modifier.width(260.dp), onClick = {
                     pin?.let {
-                        PlaceDraft.place = Place(it.name, it.at.latitude, it.at.longitude, PlaceDraft.radiusM)
-                        PlaceDraft.fromMap = true
+                        if (park) {
+                            PlaceDraft.parkAt = Place(it.name, it.at.latitude, it.at.longitude, ParkRadiusM)
+                        } else {
+                            PlaceDraft.place = Place(it.name, it.at.latitude, it.at.longitude, PlaceDraft.radiusM)
+                            PlaceDraft.fromMap = true
+                        }
                     }
-                    nav.go("06-4")
+                    nav.go(back)
                 })
             }
         }

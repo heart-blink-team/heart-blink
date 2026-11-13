@@ -34,7 +34,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.io.File
 import java.util.UUID
 
@@ -161,6 +163,23 @@ class HeartRepository private constructor(private val appContext: Context) {
             put("p_audio_ms", audio?.durationMs)
         })
         question(c, me, couple.id, answeredNo) ?: throw HeartError.Unknown("question $answeredNo missing")
+    }
+
+    /**
+     * Opens today's question when both of us answered the last one on an earlier day (a day starts at 4 a.m.).
+     * Nothing changes when one of us has not answered yet or today's question is already open.
+     */
+    suspend fun openTodayQuestion(): Result<Unit> = call { c, _ ->
+        c.postgrest.rpc("open_today_question")
+        Unit
+    }
+
+    /** Tells the partner's 06 which message conditions this car cannot sense. */
+    suspend fun saveCarSupport(unsupported: Collection<String>): Result<Unit> = call { c, _ ->
+        c.postgrest.rpc("save_car_support", buildJsonObject {
+            putJsonArray("p_unsupported") { unsupported.sorted().forEach { add(it) } }
+        })
+        Unit
     }
 
     /** Questions both of us answered, newest first (for the record screen). */

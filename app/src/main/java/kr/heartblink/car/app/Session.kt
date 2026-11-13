@@ -12,7 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -163,6 +166,7 @@ object Session {
      * Signs in, loads the profile and couple, then keeps the couple and the partner's driving fresh,
      * and tells the partner whenever my gear leaves or returns to P.
      */
+    @OptIn(FlowPreview::class)
     fun start(context: Context) {
         val r = repo(context)
         if (!r.enabled || job != null) return
@@ -189,14 +193,53 @@ object Session {
             launch { r.myCouple().collect { setCouple(it) } }
             launch { r.partnerDriving().collect { partnerDriving = it == true } }
             launch { r.watchCurrentQuestion().collect { onQuestion(it) } }
+            // one question a day: today's opens at start and at 4 a.m. when both answered the last one
+            launch {
+                while (true) {
+                    r.openTodayQuestion().onFailure { Log.w(TAG, "open_today_question failed: ${it.message}") }
+                    delay(millisUntilNextDay())
+                }
+            }
+            // the partner's 06 hides the conditions this car cannot sense
+            launch {
+                combine(CarSignals.unsupported, snapshotFlow { me }) { set, profile ->
+                    set.takeIf { profile != null && it != profile.unsupported.toSet() }
+                }.filterNotNull().debounce(3_000).distinctUntilChanged().collect { set ->
+                    r.saveCarSupport(set)
+                        .onSuccess { me = me?.copy(unsupported = set.sorted()) }
+                        .onFailure { Log.w(TAG, "save_car_support failed: ${it.message}") }
+                }
+            }
         }
     }
 
-    /** When the question moves on after I had answered, my partner just answered: keep that one to show. */
+    /** The app came back to the front: a new day may have started, and the partner's car may have changed. */
+    fun onResume() {
+        val r = repo ?: return
+        if (!loaded) return
+        scope.launch {
+            r.openTodayQuestion()
+            if (couple?.isActive == true) partner = r.partnerProfile()
+        }
+    }
+
+    /** Milliseconds until 4 a.m. in Seoul (a few seconds after, so the server sees the new day too). */
+    private fun millisUntilNextDay(): Long {
+        val zone = java.time.ZoneId.of("Asia/Seoul")
+        val now = java.time.ZonedDateTime.now(zone)
+        var next = now.toLocalDate().atTime(4, 0, 10).atZone(zone)
+        if (!next.isAfter(now)) next = next.plusDays(1)
+        return java.time.Duration.between(now, next).toMillis()
+    }
+
+    /**
+     * When the question moves on after only I had answered, my partner just answered (late, on a later day):
+     * keep that one to show. When both had answered already, a new day began and today's question shows.
+     */
     private suspend fun onQuestion(q: QuestionState?) {
         val before = question
         question = q
-        if (before != null && q != null && q.question.no > before.question.no && before.mine != null) {
+        if (before != null && q != null && q.question.no > before.question.no && before.mine != null && !before.bothAnswered) {
             repo?.questionAt(before.question.no)?.takeIf { it.bothAnswered }?.let { revealed = it }
         }
     }

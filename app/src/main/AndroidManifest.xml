@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- gear position: the partner sees the heart blink while I drive -->
     <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <!-- vehicle speed (PERF_VEHICLE_SPEED, the same value as the cluster): when it is safe to talk -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+    <!-- the car's position (Pleos FusedLocation): place messages, and the speed when the car gives none -->
+    <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
     <!-- the car's speech recognizer writes down a recording before it is sent -->
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <!-- while driving the app talks: a message arrived, today's question, my partner's answer -->

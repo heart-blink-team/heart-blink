@@ -168,7 +168,7 @@ private fun opensWhen(m: Message, timeParticle: Boolean = true): String = when (
     }
     DataGroup.Time -> if (timeParticle) "${m.timeLabel()}에" else m.timeLabel()
     DataGroup.FirstStart -> "그날 첫 시동을 걸 때"
-    DataGroup.Arrival -> if (m.conditionValue == ConditionValue.PARKED) "주차했을 때" else "목적지에 도착할 때"
+    DataGroup.Arrival -> if (m.conditionValue == ConditionValue.PARKED) "${m.parkedAt()}주차했을 때" else "목적지에 도착할 때"
     DataGroup.Place -> "${m.placeLabel()} 근처에 갈 때"
     null -> "조건이 맞을 때"
 }
@@ -180,13 +180,16 @@ private fun opensIf(m: Message, partnerName: String): String {
         DataGroup.Vehicle -> who + opensWhen(m).replace("켤 때", "켜면").replace("열 때", "열면")
         DataGroup.Time -> opensWhen(m)
         DataGroup.FirstStart -> who + "그날 첫 시동을 걸면"
-        DataGroup.Arrival -> who + if (m.conditionValue == ConditionValue.PARKED) "주차하면" else "목적지에 도착하면"
+        DataGroup.Arrival -> who + if (m.conditionValue == ConditionValue.PARKED) "${m.parkedAt()}주차하면" else "목적지에 도착하면"
         DataGroup.Place -> who + "${m.placeLabel()} 근처에 가면"
         null -> "조건이 맞으면"
     }
 }
 
 private fun Message.quote(): String = if (body.isNotBlank()) "\"$body\"" else "음성 메시지"
+
+/** "집에 " for a 주차 message with a picked place; empty for one from before places were picked. */
+internal fun Message.parkedAt(): String = place?.let { "${parkName(it)}에 " }.orEmpty()
 
 private fun Message.toSentRow(partnerName: String): RecordMessage {
     val voice = audioPath != null

@@ -117,13 +117,15 @@ object NaviWatch {
 
     private fun publish() {
         _places.value = (bookmarks + recents).distinctBy { "${it.name}:${"%.4f".format(it.lat)}:${"%.4f".format(it.lng)}" }
+        if (kr.heartblink.car.BuildConfig.DEBUG) Log.d(TAG, "places ${_places.value.map { "${it.name} ${it.lat},${it.lng}" }}")
     }
 
     /** Where the car is every 30 s (place messages), the next turn every 3 s while driving. */
     private fun poll() {
         main.postDelayed(object : Runnable {
             override fun run() {
-                if (MessageOpener.hasPlaceMessages()) ask { it.getCurrentLocationInfo() }
+                // the fused location (CarSignals) checks places every second; the navigation is the backup
+                if (CarSignals.position.value == null && MessageOpener.hasPlaceMessages()) ask { it.getCurrentLocationInfo() }
                 main.postDelayed(this, 30_000)
             }
         }, 2_000)

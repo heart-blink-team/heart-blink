@@ -99,7 +99,7 @@ object MessageOpener {
                     val since = drivingSince
                     drivingSince = null
                     if (since != null && now - since >= 60_000) {
-                        open("주차") { it.group == ConditionGroup.Arrival && it.conditionValue == ConditionValue.PARKED }
+                        open("주차") { it.group == ConditionGroup.Arrival && it.conditionValue == ConditionValue.PARKED && parkedAt(it) }
                     }
                 }
                 checkTime()
@@ -161,8 +161,27 @@ object MessageOpener {
 
     // ------------------------------------------------------------ navigation
 
-    /** The navigation says the car arrived at its destination. */
-    fun onDestination() = open("목적지 도착") { it.group == ConditionGroup.Arrival && it.conditionValue == ConditionValue.DESTINATION }
+    /**
+     * The navigation says the car arrived at its destination. A 주차 message whose place is right here opens
+     * too: with route guidance the arrival comes before the gear goes to P.
+     */
+    fun onDestination() = open("목적지 도착") {
+        it.group == ConditionGroup.Arrival &&
+            (it.conditionValue == ConditionValue.DESTINATION || (it.conditionValue == ConditionValue.PARKED && it.place != null && parkedAt(it)))
+    }
+
+    /**
+     * Whether the car stopped at the place the sender picked on the map for a 주차 message (the partner's
+     * home or office, say): within its circle, judged here in the car. A message from before places were
+     * picked has none and opens wherever the car parks.
+     */
+    private fun parkedAt(m: Message): Boolean {
+        val p = m.place ?: return true
+        val (lat, lng) = CarSignals.position.value ?: NaviWatch.here.value?.let { it.lat to it.lng } ?: return false
+        val d = distanceM(lat, lng, p.lat, p.lng)
+        Log.i(TAG, "parked ${d.toInt()} m from ${p.name}")
+        return d <= p.radiusM
+    }
 
     fun hasPlaceMessages(): Boolean = pending.any { it.message.group == ConditionGroup.Place }
 

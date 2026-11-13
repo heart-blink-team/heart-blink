@@ -1,7 +1,9 @@
 package kr.heartblink.car
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Handler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,6 +29,7 @@ import kr.heartblink.car.app.DriveTalk
 import kr.heartblink.car.app.HeartService
 import kr.heartblink.car.app.MessageOpener
 import kr.heartblink.car.app.NaviWatch
+import kr.heartblink.car.app.SignalProbe
 import kr.heartblink.car.app.Session
 import kr.heartblink.car.ui.screen.Arrival
 import kr.heartblink.car.ui.screen.MessageDraft
@@ -69,12 +72,26 @@ class MainActivity : ComponentActivity() {
             intent?.getStringExtra("arrive")?.let { name ->
                 Handler(mainLooper).postDelayed({ NaviWatch.arrived(name) }, 10_000)
             }
+            // log every car signal the plan relies on (tag SignalProbe), to check them on the emulator
+            if (intent?.getBooleanExtra("probe", false) == true) SignalProbe.start(this)
         }
         HeartService.start(this)
         Session.start(this)
         CarSignals.start(this)
         MessageOpener.start(this)
+        askCarPermissions()
         setContent { App() }
+    }
+
+    /** The vehicle speed and the car's position are runtime permissions: ask once, then start the speed. */
+    private val carPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        CarSignals.startSpeed(this)
+    }
+
+    private fun askCarPermissions() {
+        val missing = listOf(CarSignals.CAR_SPEED, CarSignals.FUSED_LOCATION)
+            .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) carPermissions.launch(missing.toTypedArray())
     }
 
     override fun onResume() {
@@ -83,6 +100,7 @@ class MainActivity : ComponentActivity() {
         shown.clear()
         resumes++
         DriveTalk.appVisible = true
+        Session.onResume()
     }
 
     override fun onPause() {

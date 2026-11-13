@@ -182,7 +182,13 @@ object DriveTalk {
                 continue
             }
             val waited = SystemClock.elapsedRealtime()
-            while (!safeNow() && SystemClock.elapsedRealtime() - waited < maxWaitMs) delay(1_000)
+            var why: String? = null
+            while (SystemClock.elapsedRealtime() - waited < maxWaitMs) {
+                val now = notSafeBecause() ?: break
+                if (now != why) Log.i(TAG, "waiting for a safe moment: $now")
+                why = now
+                delay(1_000)
+            }
             queue.remove(t)
             doneThisDrive += keyOf(t)
             if (!safeNow()) {
@@ -196,14 +202,27 @@ object DriveTalk {
         }
     }
 
-    /** The navigation is not speaking. (Speed and turn distance come once the car gives them, design 2.2.) */
-    private fun safeNow(): Boolean {
+    /**
+     * The navigation is not speaking, no turn within 300 m, no sudden speeding up or slowing down (the speed
+     * is the car's own PERF_VEHICLE_SPEED, or worked out from positions when it is not allowed), no sharp
+     * steering, no turn signal, and not braking while still moving.
+     */
+    private fun safeNow(): Boolean = notSafeBecause() == null
+
+    /** Why this is not a safe moment to talk, or null when it is. */
+    private fun notSafeBecause(): String? {
         val am = app.getSystemService(AudioManager::class.java)
         val guiding = am.activePlaybackConfigurations.any {
             it.audioAttributes.usage == AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE
         }
-        val turnSoon = NaviWatch.nextTurnM?.let { it < 300.0 } == true
-        return !guiding && !turnSoon
+        // cruise control on means a steady road even when the speed reading wobbles
+        val steady = CarSignals.speedSteady() || CarSignals.cruiseOn == true
+        return when {
+            guiding -> "navigation speaking"
+            NaviWatch.nextTurnM?.let { it < 300.0 } == true -> "turn within 300 m"
+            !steady -> "speed changing"
+            else -> CarSignals.busyControl()
+        }
     }
 
     private suspend fun talk(t: Talk) {
