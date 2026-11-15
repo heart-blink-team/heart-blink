@@ -24,6 +24,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        // Pleos cars run arm64; the Pleos Connect emulator runs x86_64
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
 
         buildConfigField("String", "SUPABASE_URL", "\"${localProp("SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProp("SUPABASE_ANON_KEY")}\"")
