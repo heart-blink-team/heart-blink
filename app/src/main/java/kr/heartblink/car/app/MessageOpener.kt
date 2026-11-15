@@ -70,13 +70,20 @@ object MessageOpener {
         }
     }
 
+    private val _loaded = MutableStateFlow(false)
+    /** True once the first read of [waiting] after the app started is done (even when it failed). */
+    val loaded: StateFlow<Boolean> = _loaded
+
     /** Reloads the opened but unheard messages, for example after one was listened to. */
     suspend fun refreshWaiting() {
         val r = repo ?: return
         // a failed read keeps the list as it was
-        val all = r.receivedMessagesOrNull() ?: return
-        _waiting.value = all.filter { it.openedAt != null && it.heardAt == null }.sortedBy { it.openedAt }
-        Log.i(TAG, "waiting ${_waiting.value.size}")
+        val all = r.receivedMessagesOrNull()
+        if (all != null) {
+            _waiting.value = all.filter { it.openedAt != null && it.heardAt == null }.sortedBy { it.openedAt }
+            Log.i(TAG, "waiting ${_waiting.value.size}")
+        }
+        _loaded.value = true
     }
 
     // ------------------------------------------------------------ car events

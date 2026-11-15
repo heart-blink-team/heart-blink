@@ -17,7 +17,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -99,11 +98,11 @@ object DriveTalk {
             // a message that opened: told while driving, announced when parked and the app is not on screen
             launch {
                 // what already waited when the app started is not news; it shows from the envelope
-                var seen: Set<String>? = null
-                MessageOpener.waiting.drop(1).collect { list ->
-                    val known = seen ?: list.map { it.id }.toSet().also { seen = it }
-                    val fresh = list.filter { it.id !in known }
-                    seen = known + list.map { it.id }
+                MessageOpener.loaded.first { it }
+                var seen = MessageOpener.waiting.value.map { it.id }.toSet()
+                MessageOpener.waiting.collect { list ->
+                    val fresh = list.filter { it.id !in seen }
+                    seen = seen + list.map { it.id }
                     if (fresh.isEmpty()) return@collect
                     Log.i(TAG, "opened ${fresh.size}, driving ${CarSignals.driving.value}, app on screen $appVisible")
                     if (CarSignals.driving.value == true) {
