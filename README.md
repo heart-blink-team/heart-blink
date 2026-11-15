@@ -12,7 +12,7 @@
 
 ## 시연 영상
 
-- [`docs/heartblink_demo.mp4`](docs/heartblink_demo.mp4) (1분 46초, Pleos Connect 에뮬레이터 화면 녹화)
+- [`docs/heartblink_demo.mp4`](docs/heartblink_demo.mp4) (2분 18초, Pleos Connect 에뮬레이터 화면 녹화)
 - 에뮬레이터 화면 녹화에는 소리가 담기지 않아, 차가 말하는 안내(Pleos TextToSpeech)는 자막으로 보여 주고 메시지 목소리는 앱이 재생한 녹음 파일을 그대로 넣었습니다.
 
 ## 주요 기능
